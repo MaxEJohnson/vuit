@@ -8,10 +8,9 @@ A buffer manager layer for Vim that provides a terminal-like interface to search
 
 ### Mac
 
-```bash
-brew tap MaxEJohnson/vuit
-brew install vuit
-```
+Download .tar.gz from releases page.
+
+Dependencies: fzf, fd
 
 ### Linux
 
