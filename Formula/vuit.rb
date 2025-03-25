@@ -14,6 +14,6 @@ class vuit < Formula
   end
 
   test do
-    system "#{bin}/vuit", "--version
+    system "#{bin}/vuit", "--version"
   end
 end
