@@ -1,4 +1,4 @@
-class vuit < Formula
+class Vuit < Formula
   desc "VUIT: Vim User Interface Terminal"
   homepage "https://github.com/MaxEJohnson/vuit"
   url "https://github.com/MaxEJohnson/vuit/releases/download/vuit-v0.1.1.tar.gz"
