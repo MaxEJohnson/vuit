@@ -8,9 +8,9 @@ A buffer manager layer for Vim that provides a terminal-like interface to search
 
 ### Mac
 
-Download .tar.gz from releases page.
+clone, Cargo Build, homebrew package tbd...
 
-Dependencies: fzf, fd
+dependencies: fzf, fd
 
 ### Linux
 
