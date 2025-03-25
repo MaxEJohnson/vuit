@@ -13,6 +13,8 @@ use ratatui::{
 
 use std::process::{Command, Stdio};
 
+use clap::{Command as OtherCommand};
+
 #[derive(Debug, Default)]
 pub struct App {
     input: String,
@@ -226,6 +228,16 @@ impl App {
 }
 
 fn main() -> io::Result<()> {
+    let matches = OtherCommand::new("vuit")
+    .version(env!("CARGO_PKG_VERSION")) // Uses the version from Cargo.toml
+    .about("Vim User Interface Terminal - A Buffer Manager for Vim")
+    .get_matches();
+
+    if matches.contains_id("version") {
+        println!("vuit version {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }   
+
     let mut terminal = ratatui::init();
     let app_result = App::default().run(&mut terminal);
     ratatui::restore();
