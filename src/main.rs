@@ -125,10 +125,23 @@ impl App {
 
     fn run_search_cmd(&mut self, search_term: String) -> Vec<String> {
 
-        let output = Command::new("fdfind")
+        let output = Command::new("fd")
+            .arg("--version")
+            .output();
+
+        let search_cmd = match output {
+            Ok(_output) => {
+                "fd"
+            }
+            Err(_) => {
+                "fdfind"
+            }
+        };
+
+        let output = Command::new(search_cmd)
             .stdout(Stdio::piped()) 
             .spawn()
-            .expect("Failed to start fdfind");
+            .expect("Failed to start fd");
 
         let fzf_output = Command::new("fzf")
             .stdin(output.stdout.unwrap())

@@ -1,9 +1,9 @@
 class vuit < Formula
   desc "VUIT: Vim User Interface Terminal"
   homepage "https://github.com/MaxEJohnson/vuit"
-  url "https://github.com/MaxEJohnson/vuit/releases/download/vuit-v0.1.0.tar.gz"
-  sha256 "170b2280a3823cb416a3323c4df14b4c37b02991a1d92fe2792281a5828e478d"
-  version "0.1.0"
+  url "https://github.com/MaxEJohnson/vuit/releases/download/vuit-v0.1.1.tar.gz"
+  sha256 "720a29c3f2fa8a556179b9f7732719ea0e761afc2a6471c8845b63f8749e03b3"
+  version "0.1.1"
 
   depends_on "vim"
   depends_on "fzf"
