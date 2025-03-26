@@ -18,9 +18,9 @@ fi
 echo -e "${GREEN}Dependencies installed${NC}"
 
 echo -e "${NC}Installing vuit${NC}"
-if [[ $OSTYPE == "*linux*" ]]; then
-    curl -L -O https://github.com/MaxEJohnson/vuit/releases/download/v$VERSION/vuit_$VERSION_amd64.deb
-    sudo dpkg -i vuit_$VERSION_amd64.deb
+if [[ $OSTYPE == linux-* ]]; then
+    curl -L -O https://github.com/MaxEJohnson/vuit/releases/download/v$VERSION/vuit_${VERSION}_amd64.deb
+    sudo dpkg -i vuit_${VERSION}_amd64.deb
 else
     curl -L -O https://github.com/MaxEJohnson/vuit/releases/download/v$VERSION/vuit-v$VERSION-macos-arm64.tar.gz
     tar -xvf vuit-v$VERSION-macos-arm64.tar.gz
