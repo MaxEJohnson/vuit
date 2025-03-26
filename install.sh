@@ -7,8 +7,8 @@ NC='\033[0m'
 VERSION=0.1.0
 
 echo -e "${NC}Installing fd and fzf${NC}"
-if [[ $OSTYPE == "*linux*" ]]; then
-    sudo apt install fdfind
+if [[ $OSTYPE == linux-* ]]; then
+    sudo apt install fd-find
     sudo apt install fzf
 else
     brew install fd
