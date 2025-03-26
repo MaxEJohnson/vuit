@@ -201,7 +201,7 @@ impl App {
         match key_event {
             KeyEvent{ 
                 code: KeyCode::Char(c), 
-                modifiers: KeyModifiers::NONE,
+                modifiers: KeyModifiers::NONE | KeyModifiers::SHIFT,
                 ..
             } => {
                 self.input.push(c);
