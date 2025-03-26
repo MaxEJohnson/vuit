@@ -1,6 +1,6 @@
 use std::io;
 
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
 use ratatui::{
     style::{Stylize, Style, Color},
@@ -22,6 +22,8 @@ pub struct App {
     preview: Vec<String>,
     recent_files: Vec<String>,
     list_state: ListState,
+    recent_state: ListState,
+    switch_focus: bool,
     highlightedfile: usize,
     exit: bool,
 }
@@ -29,10 +31,19 @@ pub struct App {
 impl App {
 
     fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
+        self.switch_focus = true;
+        self.filelist = self.run_search_cmd(self.input.clone());
+        self.list_state.select(Some(self.highlightedfile));
+        if self.highlightedfile >= self.filelist.len() && self.filelist.len() > 0 {
+            self.highlightedfile = self.filelist.len() - 1;
+        }
+        self.preview = self.run_preview_cmd(self.filelist[self.highlightedfile].clone());
+
         while !self.exit {
             terminal.draw(|frame| self.draw(frame))?;
             self.handle_events(terminal)?;
         }
+        let _ = terminal.clear();
 
         Ok(())
     }
@@ -80,7 +91,8 @@ impl App {
 
         let recentfiles_list = List::new(self.recent_files.clone())
             .block(recentfiles_block)
-            .style(Style::default().fg(Color::LightBlue));
+            .style(Style::default().fg(Color::LightBlue))
+            .highlight_style(Style::default().fg(Color::White).bg(Color::Blue));
 
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -106,7 +118,7 @@ impl App {
             ])
             .split(top_chunks[0]);
 
-        frame.render_widget(recentfiles_list, left_chunks[0]);
+        frame.render_stateful_widget(recentfiles_list, left_chunks[0], &mut self.recent_state);
         frame.render_stateful_widget(filelist_list, left_chunks[1], &mut self.list_state);
         frame.render_widget(preview_list, top_chunks[1]);
         frame.render_widget(search_para, chunks[1]);
@@ -139,6 +151,8 @@ impl App {
         };
 
         let output = Command::new(search_cmd)
+            .arg("-t")
+            .arg("f")
             .stdout(Stdio::piped()) 
             .spawn()
             .expect("Failed to start fd");
@@ -160,43 +174,85 @@ impl App {
     }
 
     fn run_preview_cmd(&mut self, file: String) -> Vec<String> {
+        if self.filelist.len() == 0 {
+            return vec![];
+        }
         let output = Command::new("cat")
             .arg(file)
             .output()
             .expect("Failed to run cat");
 
-        std::str::from_utf8(&output.stdout)
-            .expect("Invalid UTF-8 output from bat")
-            .lines()
-            .map(|line| line.to_string())
-            .collect::<Vec<String>>()
+        match std::str::from_utf8(&output.stdout) {
+            Ok(output_str) => {
+                // If the output is valid UTF-8, process the lines
+                output_str
+                    .lines()
+                    .map(|line| line.to_string())
+                    .collect::<Vec<String>>()
+            }
+            Err(_) => {
+                // If the output is not valid UTF-8, return an empty vector
+                "No Preview Available".split("\n").map(|line| line.to_string()).collect::<Vec<String>>()
+            }
+        }
     }
  
     fn handle_key_event(&mut self, key_event: KeyEvent, terminal: &mut DefaultTerminal) {
-        match key_event.code {
-            KeyCode::Char(c) => {
+        match key_event {
+            KeyEvent{ 
+                code: KeyCode::Char(c), 
+                modifiers: KeyModifiers::NONE,
+                ..
+            } => {
                 self.input.push(c);
                 self.filelist = self.run_search_cmd(self.input.clone());
                 if self.filelist.len() == 0 {
                     return;
                 }
-                self.list_state.select(Some(self.highlightedfile));
-                self.preview = self.run_preview_cmd(self.filelist[self.highlightedfile].clone());
+                if self.switch_focus {
+                    self.list_state.select(Some(self.highlightedfile));
+                    if self.highlightedfile >= self.filelist.len() && self.filelist.len() > 0 {
+                        self.highlightedfile = self.filelist.len() - 1;
+                    }
+                    self.preview = self.run_preview_cmd(self.filelist[self.highlightedfile].clone());
+                } else {
+                    self.recent_state.select(Some(self.highlightedfile));
+                    if self.highlightedfile >= self.recent_files.len() && self.recent_files.len() > 0 {
+                        self.highlightedfile = self.recent_files.len() - 1;
+                    }
+                }
             }
-            KeyCode::Backspace => {
+            KeyEvent{ code: KeyCode::Backspace, .. } => {
+                if self.input.len() == 0 {
+                    return;
+                }
                 self.input.pop();
                 self.filelist = self.run_search_cmd(self.input.clone());
                 if self.filelist.len() == 0 {
                     return;
                 }
-                self.list_state.select(Some(self.highlightedfile));
-                self.preview = self.run_preview_cmd(self.filelist[self.highlightedfile].clone());
+                if self.switch_focus {
+                    self.list_state.select(Some(self.highlightedfile));
+                    if self.highlightedfile >= self.filelist.len() && self.filelist.len() > 0 {
+                        self.highlightedfile = self.filelist.len() - 1;
+                    }
+                    self.preview = self.run_preview_cmd(self.filelist[self.highlightedfile].clone());
+                } else {
+                    self.recent_state.select(Some(self.highlightedfile));
+                    if self.highlightedfile >= self.recent_files.len() && self.recent_files.len() > 0 {
+                        self.highlightedfile = self.recent_files.len() - 1;
+                    }
+                }
             }
-            KeyCode::Enter => {
+            KeyEvent{ code: KeyCode::Enter, .. } => {
                 if self.filelist.len() == 0 {
                     return;
                 }
-                self.recent_files.push(self.filelist[self.highlightedfile].clone());
+                if self.switch_focus {
+                    if !self.recent_files.contains(&self.filelist[self.highlightedfile]) {
+                        self.recent_files.push(self.filelist[self.highlightedfile].clone());
+                    }   
+                }
                 if self.recent_files.len() > 5 {
                     self.recent_files.remove(0);
                 }
@@ -209,30 +265,95 @@ impl App {
                 let _ = terminal.clear();
                 let _ = terminal.draw(|frame| self.draw(frame));
             }
-            KeyCode::Esc => {
+            KeyEvent{ code: KeyCode::Esc, .. } => {
                 self.exit = true;
             }
-            KeyCode::Down => {
-                if self.filelist.len() == 0 {
-                    return;
+            KeyEvent{ 
+                code: KeyCode::Char('j'),
+                modifiers: KeyModifiers::CONTROL,
+                ..
+            } => {
+                if self.switch_focus {
+                    if self.filelist.len() == 0 {
+                        return;
+                    }
+                } else {
+                    if self.recent_files.len() == 0 {
+                        return;
+                    }
                 }
                 self.highlightedfile += 1;
-                if self.highlightedfile >= self.filelist.len() {
-                    self.highlightedfile = self.filelist.len() - 1;
+                if self.switch_focus {
+                    if self.highlightedfile >= self.filelist.len() && self.filelist.len() > 0 {
+                        self.highlightedfile = self.filelist.len() - 1;
+                    }
+                    self.list_state.select(Some(self.highlightedfile));
+                    self.preview = self.run_preview_cmd(self.filelist[self.highlightedfile].clone());
+                } else {
+                    if self.highlightedfile >= self.recent_files.len() && self.recent_files.len() > 0 {
+                        self.highlightedfile = self.recent_files.len() - 1;
+                    }
+                    self.recent_state.select(Some(self.highlightedfile));
+                    self.preview = self.run_preview_cmd(self.recent_files[self.highlightedfile].clone());
                 }
-                self.list_state.select(Some(self.highlightedfile));
-                self.preview = self.run_preview_cmd(self.filelist[self.highlightedfile].clone());
             }
-            KeyCode::Up => {
-                if self.filelist.len() == 0 {
-                    return;
+            KeyEvent{ 
+                code: KeyCode::Char('k'),
+                modifiers: KeyModifiers::CONTROL,
+                ..
+            } => {
+                if self.switch_focus {
+                    if self.filelist.len() == 0 {
+                        return;
+                    }
+                } else {
+                    if self.recent_files.len() == 0 {
+                        return;
+                    }
                 }
                 if self.highlightedfile == 0 {
                     return;
                 }
                 self.highlightedfile -= 1;
-                self.list_state.select(Some(self.highlightedfile));
-                self.preview = self.run_preview_cmd(self.filelist[self.highlightedfile].clone());
+                if self.switch_focus {
+                    if self.highlightedfile >= self.filelist.len() && self.filelist.len() > 0 {
+                        self.highlightedfile = self.filelist.len() - 1;
+                    }
+                    self.list_state.select(Some(self.highlightedfile));
+                    self.preview = self.run_preview_cmd(self.filelist[self.highlightedfile].clone());
+                } else {
+                    if self.highlightedfile >= self.recent_files.len() && self.recent_files.len() > 0 {
+                        self.highlightedfile = self.recent_files.len() - 1;
+                    }
+                    self.recent_state.select(Some(self.highlightedfile));
+                    self.preview = self.run_preview_cmd(self.recent_files[self.highlightedfile].clone());
+                }
+            }
+            KeyEvent{
+                code: KeyCode::Tab,
+                ..
+            } => {
+                if self.recent_files.len() == 0 {
+                    return;
+                }
+                self.switch_focus = !self.switch_focus;
+                if self.switch_focus {
+                    self.recent_state.select(None);
+                    self.highlightedfile = 0;
+                    self.list_state.select(Some(self.highlightedfile));
+                    if self.filelist.len() == 0 {
+                        return;
+                    }
+                    self.preview = self.run_preview_cmd(self.filelist[self.highlightedfile].clone());
+                } else {
+                    self.list_state.select(None);
+                    self.highlightedfile = 0;
+                    self.recent_state.select(Some(self.highlightedfile));
+                    if self.recent_files.len() == 0 {
+                        return;
+                    }
+                    self.preview = self.run_preview_cmd(self.recent_files[self.highlightedfile].clone());
+                }
             }
             _ => {}
         };
