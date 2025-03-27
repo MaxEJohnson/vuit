@@ -2,7 +2,7 @@
 
 A buffer manager layer for Vim that provides a terminal-like interface to search for, open, and edit files.
 
-![App Screenshot](./vuit.png)
+<img width="1512" alt="image" src="https://github.com/user-attachments/assets/5c355911-d516-4b1d-b709-e0b55b0b48ac" />
 
 ## Installation (Mac/WSL/Linux)
 
