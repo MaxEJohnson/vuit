@@ -1,5 +1,6 @@
 use std::io::prelude::*;
 use std::io::{self, BufReader};
+use std::process::{Command, Stdio};
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
@@ -12,49 +13,68 @@ use ratatui::{
     DefaultTerminal, Frame,
 };
 
-use std::process::{Command, Stdio};
-
 use clap::Command as OtherCommand;
 
 #[derive(Debug, Default)]
-pub struct App {
-    input: String,
-    filelist: Vec<String>,
+pub struct Vuit {
+    // Input
+    typed_input: String,
+
+    // Lists to Display
+    file_list: Vec<String>,
     preview: Vec<String>,
     recent_files: Vec<String>,
-    list_state: ListState,
-    recent_state: ListState,
+    fd_list: Vec<String>,
+
+    // State Variables
     switch_focus: bool,
-    highlightedfile: usize,
-    fdlist: Vec<String>, // This will store the output of fd command
+    hltd_file: usize,
+    file_list_state: ListState,
+    recent_state: ListState,
+
+    // Termination
     exit: bool,
 }
 
-impl App {
+impl Vuit {
     fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
+        // Initialize Focus to File List
         self.switch_focus = true;
+
+        // Populate fd list
         self.run_fd_cmd();
-        self.filelist = self.run_search_cmd(self.input.clone());
-        self.list_state.select(Some(self.highlightedfile));
-        if self.highlightedfile >= self.filelist.len() && self.filelist.len() > 0 {
-            self.highlightedfile = self.filelist.len() - 1;
+
+        // Populate File list and set it's highlight index
+        self.file_list = self.run_search_cmd();
+        self.file_list_state.select(Some(self.hltd_file));
+
+        if self.hltd_file >= self.file_list.len() && self.file_list.len() > 0 {
+            self.hltd_file = self.file_list.len() - 1;
         }
-        self.preview = self.run_preview_cmd(self.filelist[self.highlightedfile].clone());
+
+        // Create Preview of Highlighted File
+        self.preview = self.run_preview_cmd();
+
+        // Start Vuit
         while !self.exit {
-            terminal.draw(|frame| self.draw(frame))?;
+            terminal.draw(|frame| self.ui(frame))?;
             self.handle_events(terminal)?;
         }
+
+        // Clear Terminal after close
         let _ = terminal.clear();
 
         Ok(())
     }
 
-    fn draw(&mut self, frame: &mut Frame) {
+    fn ui(&mut self, frame: &mut Frame) {
+        // Window Titles
         let search_title = Line::from(" Search ".underlined());
         let preview_title = Line::from(" Preview ".underlined());
-        let filelist_title = Line::from(" Files ".underlined());
-        let recentfiles_title = Line::from(" Recent ".underlined());
+        let file_list_title = Line::from(" Files ".underlined());
+        let recent_files_title = Line::from(" Recent ".underlined());
 
+        // Window Blocks
         let search_block = Block::bordered()
             .title(search_title.centered())
             .border_set(border::THICK);
@@ -63,34 +83,36 @@ impl App {
             .title(preview_title.centered())
             .border_set(border::THICK);
 
-        let filelist_block = Block::bordered()
-            .title(filelist_title.centered())
+        let file_list_block = Block::bordered()
+            .title(file_list_title.centered())
             .border_set(border::THICK);
 
         let recentfiles_block = Block::bordered()
-            .title(recentfiles_title.centered())
+            .title(recent_files_title.centered())
             .border_set(border::THICK);
 
-        let input = Text::from("> ".to_owned() + &self.input.clone());
+        // Text/Paragraphs to Display
+        let input = Text::from("> ".to_owned() + &self.typed_input);
 
-        let search_para = Paragraph::new(input.clone())
+        let search_para = Paragraph::new(input)
             .block(search_block)
             .style(Style::default().fg(Color::LightBlue));
 
-        let filelist_list = List::new(self.filelist.clone())
-            .block(filelist_block)
+        let file_list_list = List::new(self.file_list.to_owned())
+            .block(file_list_block)
             .style(Style::default().fg(Color::LightBlue))
             .highlight_style(Style::default().fg(Color::White).bg(Color::Blue));
 
-        let preview_list = List::new(self.preview.clone())
+        let preview_list = List::new(self.preview.to_owned())
             .block(preview_block)
             .style(Style::default().fg(Color::LightBlue));
 
-        let recentfiles_list = List::new(self.recent_files.clone())
+        let recent_files_list = List::new(self.recent_files.to_owned())
             .block(recentfiles_block)
             .style(Style::default().fg(Color::LightBlue))
             .highlight_style(Style::default().fg(Color::White).bg(Color::Blue));
 
+        // Layout Description
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Percentage(95), Constraint::Percentage(5)])
@@ -106,8 +128,9 @@ impl App {
             .constraints([Constraint::Percentage(30), Constraint::Percentage(70)])
             .split(top_chunks[0]);
 
-        frame.render_stateful_widget(recentfiles_list, left_chunks[0], &mut self.recent_state);
-        frame.render_stateful_widget(filelist_list, left_chunks[1], &mut self.list_state);
+        // Rendering of Windows
+        frame.render_stateful_widget(recent_files_list, left_chunks[0], &mut self.recent_state);
+        frame.render_stateful_widget(file_list_list, left_chunks[1], &mut self.file_list_state);
         frame.render_widget(preview_list, top_chunks[1]);
         frame.render_widget(search_para, chunks[1]);
     }
@@ -137,32 +160,30 @@ impl App {
             .spawn()
             .expect("Failed to start fd");
 
-        //self.fdlist = output.stdout;
+        //self.fd_list = output.stdout;
         let stdout = output.stdout.expect("Failed to capture stdout");
         let reader = BufReader::new(stdout);
 
-        self.fdlist = reader.lines().filter_map(Result::ok).collect();
+        self.fd_list = reader.lines().filter_map(Result::ok).collect();
     }
 
-    fn run_search_cmd(&mut self, search_term: String) -> Vec<String> {
-        let input = self.fdlist.join("\n");
+    fn run_search_cmd(&mut self) -> Vec<String> {
+        let input = self.fd_list.join("\n");
 
         let mut fzf = Command::new("fzf")
             .arg("--filter")
-            .arg(search_term)
+            .arg(&self.typed_input)
             .stdin(Stdio::piped()) // Allow writing to stdin
             .stdout(Stdio::piped()) // Capture output
             .spawn()
             .expect("Failed to run fzf");
 
-        // Write the input to fzf
         if let Some(mut fzf_stdin) = fzf.stdin.take() {
             fzf_stdin
                 .write_all(input.as_bytes())
                 .expect("Failed to write to fzf stdin");
         }
 
-        // Capture fzf output
         let output = fzf.wait_with_output().expect("Failed to read fzf output");
 
         let selected_files =
@@ -174,18 +195,26 @@ impl App {
             .collect::<Vec<String>>()
     }
 
-    fn run_preview_cmd(&mut self, file: String) -> Vec<String> {
-        if self.filelist.len() == 0 {
+    fn run_preview_cmd(&mut self) -> Vec<String> {
+        if self.file_list.len() == 0 {
             return vec![];
         }
-        let output = Command::new("head")
-            .arg("-n")
-            .arg("50")
-            .arg(file)
-            .output()
-            .expect("Failed to run head");
 
-        match std::str::from_utf8(&output.stdout) {
+        let output = if self.switch_focus {
+            Command::new("head")
+                .arg("-n")
+                .arg("50")
+                .arg(&self.file_list[self.hltd_file])
+                .output()
+        } else {
+            Command::new("head")
+                .arg("-n")
+                .arg("50")
+                .arg(&self.recent_files[self.hltd_file])
+                .output()
+        };
+
+        match std::str::from_utf8(&output.unwrap().stdout) {
             Ok(output_str) => {
                 // If the output is valid UTF-8, process the lines
                 output_str
@@ -204,30 +233,34 @@ impl App {
     }
 
     fn handle_key_event(&mut self, key_event: KeyEvent, terminal: &mut DefaultTerminal) {
+        // Many of the Match cases look redundant with the switch_focus, but for now it deals with
+        // double borrow issues well enough, will refactor later
+
         match key_event {
             KeyEvent {
                 code: KeyCode::Char(c),
                 modifiers: KeyModifiers::NONE | KeyModifiers::SHIFT,
                 ..
             } => {
-                self.input.push(c);
-                self.filelist = self.run_search_cmd(self.input.clone());
-                if self.filelist.len() == 0 {
+                // FZF search after each keyswipe
+
+                self.typed_input.push(c);
+                self.file_list = self.run_search_cmd();
+
+                if self.file_list.len() == 0 {
                     return;
                 }
+
                 if self.switch_focus {
-                    self.list_state.select(Some(self.highlightedfile));
-                    if self.highlightedfile >= self.filelist.len() && self.filelist.len() > 0 {
-                        self.highlightedfile = self.filelist.len() - 1;
+                    self.file_list_state.select(Some(self.hltd_file));
+                    if self.hltd_file >= self.file_list.len() && self.file_list.len() > 0 {
+                        self.hltd_file = self.file_list.len() - 1;
                     }
-                    self.preview =
-                        self.run_preview_cmd(self.filelist[self.highlightedfile].clone());
+                    self.preview = self.run_preview_cmd();
                 } else {
-                    self.recent_state.select(Some(self.highlightedfile));
-                    if self.highlightedfile >= self.recent_files.len()
-                        && self.recent_files.len() > 0
-                    {
-                        self.highlightedfile = self.recent_files.len() - 1;
+                    self.recent_state.select(Some(self.hltd_file));
+                    if self.hltd_file >= self.recent_files.len() && self.recent_files.len() > 0 {
+                        self.hltd_file = self.recent_files.len() - 1;
                     }
                 }
             }
@@ -235,27 +268,29 @@ impl App {
                 code: KeyCode::Backspace,
                 ..
             } => {
-                if self.input.len() == 0 {
+                // FZF search after each backspace
+
+                if self.typed_input.len() == 0 {
                     return;
                 }
-                self.input.pop();
-                self.filelist = self.run_search_cmd(self.input.clone());
-                if self.filelist.len() == 0 {
+
+                self.typed_input.pop();
+                self.file_list = self.run_search_cmd();
+
+                if self.file_list.len() == 0 {
                     return;
                 }
+
                 if self.switch_focus {
-                    self.list_state.select(Some(self.highlightedfile));
-                    if self.highlightedfile >= self.filelist.len() && self.filelist.len() > 0 {
-                        self.highlightedfile = self.filelist.len() - 1;
+                    self.file_list_state.select(Some(self.hltd_file));
+                    if self.hltd_file >= self.file_list.len() && self.file_list.len() > 0 {
+                        self.hltd_file = self.file_list.len() - 1;
                     }
-                    self.preview =
-                        self.run_preview_cmd(self.filelist[self.highlightedfile].clone());
+                    self.preview = self.run_preview_cmd();
                 } else {
-                    self.recent_state.select(Some(self.highlightedfile));
-                    if self.highlightedfile >= self.recent_files.len()
-                        && self.recent_files.len() > 0
-                    {
-                        self.highlightedfile = self.recent_files.len() - 1;
+                    self.recent_state.select(Some(self.hltd_file));
+                    if self.hltd_file >= self.recent_files.len() && self.recent_files.len() > 0 {
+                        self.hltd_file = self.recent_files.len() - 1;
                     }
                 }
             }
@@ -263,40 +298,42 @@ impl App {
                 code: KeyCode::Enter,
                 ..
             } => {
-                if self.filelist.len() == 0 {
+                // Start Vim on highlighted file when Enter is pressed
+                if self.file_list.len() == 0 {
                     return;
                 }
+
                 if self.switch_focus {
-                    if !self
-                        .recent_files
-                        .contains(&self.filelist[self.highlightedfile])
-                    {
+                    if !self.recent_files.contains(&self.file_list[self.hltd_file]) {
                         self.recent_files
-                            .push(self.filelist[self.highlightedfile].clone());
+                            .push(self.file_list[self.hltd_file].to_owned());
                     }
                 }
+
                 if self.recent_files.len() > 5 {
                     self.recent_files.remove(0);
                 }
 
                 if self.switch_focus {
                     let _ = Command::new("vim")
-                        .arg(self.filelist[self.highlightedfile].clone())
+                        .arg(self.file_list[self.hltd_file].to_owned())
                         .status()
                         .expect("Failed to start vim");
                 } else {
                     let _ = Command::new("vim")
-                        .arg(self.recent_files[self.highlightedfile].clone())
+                        .arg(self.recent_files[self.hltd_file].to_owned())
                         .status()
                         .expect("Failed to start vim");
                 }
 
+                // Clear terminal on exit from Vim
                 let _ = terminal.clear();
-                let _ = terminal.draw(|frame| self.draw(frame));
+                let _ = terminal.draw(|frame| self.ui(frame));
             }
             KeyEvent {
                 code: KeyCode::Esc, ..
             } => {
+                // Exit when Esc is pressed
                 self.exit = true;
             }
             KeyEvent {
@@ -308,8 +345,9 @@ impl App {
                 code: KeyCode::Down,
                 ..
             } => {
+                // Navigate file list down
                 if self.switch_focus {
-                    if self.filelist.len() == 0 {
+                    if self.file_list.len() == 0 {
                         return;
                     }
                 } else {
@@ -317,23 +355,21 @@ impl App {
                         return;
                     }
                 }
-                self.highlightedfile += 1;
+
+                self.hltd_file += 1;
+
                 if self.switch_focus {
-                    if self.highlightedfile >= self.filelist.len() && self.filelist.len() > 0 {
-                        self.highlightedfile = self.filelist.len() - 1;
+                    if self.hltd_file >= self.file_list.len() && self.file_list.len() > 0 {
+                        self.hltd_file = self.file_list.len() - 1;
                     }
-                    self.list_state.select(Some(self.highlightedfile));
-                    self.preview =
-                        self.run_preview_cmd(self.filelist[self.highlightedfile].clone());
+                    self.file_list_state.select(Some(self.hltd_file));
+                    self.preview = self.run_preview_cmd();
                 } else {
-                    if self.highlightedfile >= self.recent_files.len()
-                        && self.recent_files.len() > 0
-                    {
-                        self.highlightedfile = self.recent_files.len() - 1;
+                    if self.hltd_file >= self.recent_files.len() && self.recent_files.len() > 0 {
+                        self.hltd_file = self.recent_files.len() - 1;
                     }
-                    self.recent_state.select(Some(self.highlightedfile));
-                    self.preview =
-                        self.run_preview_cmd(self.recent_files[self.highlightedfile].clone());
+                    self.recent_state.select(Some(self.hltd_file));
+                    self.preview = self.run_preview_cmd();
                 }
             }
             KeyEvent {
@@ -344,8 +380,9 @@ impl App {
             | KeyEvent {
                 code: KeyCode::Up, ..
             } => {
+                // Navigate file list up
                 if self.switch_focus {
-                    if self.filelist.len() == 0 {
+                    if self.file_list.len() == 0 {
                         return;
                     }
                 } else {
@@ -353,53 +390,53 @@ impl App {
                         return;
                     }
                 }
-                if self.highlightedfile == 0 {
+
+                if self.hltd_file == 0 {
                     return;
                 }
-                self.highlightedfile -= 1;
+
+                self.hltd_file -= 1;
+
                 if self.switch_focus {
-                    if self.highlightedfile >= self.filelist.len() && self.filelist.len() > 0 {
-                        self.highlightedfile = self.filelist.len() - 1;
+                    if self.hltd_file >= self.file_list.len() && self.file_list.len() > 0 {
+                        self.hltd_file = self.file_list.len() - 1;
                     }
-                    self.list_state.select(Some(self.highlightedfile));
-                    self.preview =
-                        self.run_preview_cmd(self.filelist[self.highlightedfile].clone());
+                    self.file_list_state.select(Some(self.hltd_file));
+                    self.preview = self.run_preview_cmd();
                 } else {
-                    if self.highlightedfile >= self.recent_files.len()
-                        && self.recent_files.len() > 0
-                    {
-                        self.highlightedfile = self.recent_files.len() - 1;
+                    if self.hltd_file >= self.recent_files.len() && self.recent_files.len() > 0 {
+                        self.hltd_file = self.recent_files.len() - 1;
                     }
-                    self.recent_state.select(Some(self.highlightedfile));
-                    self.preview =
-                        self.run_preview_cmd(self.recent_files[self.highlightedfile].clone());
+                    self.recent_state.select(Some(self.hltd_file));
+                    self.preview = self.run_preview_cmd();
                 }
             }
             KeyEvent {
                 code: KeyCode::Tab, ..
             } => {
+                // Switch between recent and search files
                 if self.recent_files.len() == 0 {
                     return;
                 }
+
                 self.switch_focus = !self.switch_focus;
+
                 if self.switch_focus {
                     self.recent_state.select(None);
-                    self.highlightedfile = 0;
-                    self.list_state.select(Some(self.highlightedfile));
-                    if self.filelist.len() == 0 {
+                    self.hltd_file = 0;
+                    self.file_list_state.select(Some(self.hltd_file));
+                    if self.file_list.len() == 0 {
                         return;
                     }
-                    self.preview =
-                        self.run_preview_cmd(self.filelist[self.highlightedfile].clone());
+                    self.preview = self.run_preview_cmd();
                 } else {
-                    self.list_state.select(None);
-                    self.highlightedfile = 0;
-                    self.recent_state.select(Some(self.highlightedfile));
+                    self.file_list_state.select(None);
+                    self.hltd_file = 0;
+                    self.recent_state.select(Some(self.hltd_file));
                     if self.recent_files.len() == 0 {
                         return;
                     }
-                    self.preview =
-                        self.run_preview_cmd(self.recent_files[self.highlightedfile].clone());
+                    self.preview = self.run_preview_cmd();
                 }
             }
             KeyEvent {
@@ -407,6 +444,7 @@ impl App {
                 modifiers: KeyModifiers::CONTROL,
                 ..
             } => {
+                // Refresh list of available files (e.g. after adding a new file, etc, ...)
                 self.run_fd_cmd();
             }
             _ => {}
@@ -415,6 +453,7 @@ impl App {
 }
 
 fn main() -> io::Result<()> {
+    // Versioning
     let matches = OtherCommand::new("vuit")
         .version(env!("CARGO_PKG_VERSION")) // Uses the version from Cargo.toml
         .about("Vim User Interface Terminal - A Buffer Manager for Vim")
@@ -425,8 +464,9 @@ fn main() -> io::Result<()> {
         return Ok(());
     }
 
+    // Vuit App Start
     let mut terminal = ratatui::init();
-    let app_result = App::default().run(&mut terminal);
+    let vuit_result = Vuit::default().run(&mut terminal);
     ratatui::restore();
-    app_result
+    vuit_result
 }

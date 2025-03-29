@@ -4,8 +4,8 @@
 
 GREEN='\033[0;32m'
 NC='\033[0m'
-MAC_VERSION=0.1.1
-LINUX_VERSION=0.1.0
+MAC_VERSION=0.2.0
+LINUX_VERSION=0.2.0
 
 
 echo -e "${NC}Installing fd and fzf${NC}"
