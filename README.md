@@ -20,6 +20,8 @@ ENTER - On highlighted file, open Vim.
 
 TAB - Switch between the "Files" window and the "Recent" window.
 
+\<C-r\> - Refresh CWD file scan.
+
 ESC - Exit vuit.
 
 All other keystrokes will populate the "Search" input window to filter the "Files" window output.
