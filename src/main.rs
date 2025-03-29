@@ -1,4 +1,5 @@
-use std::io;
+use std::io::prelude::*;
+use std::io::{self, BufReader};
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
@@ -25,19 +26,20 @@ pub struct App {
     recent_state: ListState,
     switch_focus: bool,
     highlightedfile: usize,
+    fdlist: Vec<String>, // This will store the output of fd command
     exit: bool,
 }
 
 impl App {
     fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
         self.switch_focus = true;
+        self.run_fd_cmd();
         self.filelist = self.run_search_cmd(self.input.clone());
         self.list_state.select(Some(self.highlightedfile));
         if self.highlightedfile >= self.filelist.len() && self.filelist.len() > 0 {
             self.highlightedfile = self.filelist.len() - 1;
         }
         self.preview = self.run_preview_cmd(self.filelist[self.highlightedfile].clone());
-
         while !self.exit {
             terminal.draw(|frame| self.draw(frame))?;
             self.handle_events(terminal)?;
@@ -80,9 +82,6 @@ impl App {
             .style(Style::default().fg(Color::LightBlue))
             .highlight_style(Style::default().fg(Color::White).bg(Color::Blue));
 
-        //let styled_preview = self.preview.iter().map(|line| Text::from(line.clone()).blue()).collect::<Vec<Text>>();
-
-        //let preview_list = List::new(styled_preview.clone())
         let preview_list = List::new(self.preview.clone())
             .block(preview_block)
             .style(Style::default().fg(Color::LightBlue));
@@ -123,7 +122,7 @@ impl App {
         Ok(())
     }
 
-    fn run_search_cmd(&mut self, search_term: String) -> Vec<String> {
+    fn run_fd_cmd(&mut self) -> () {
         let output = Command::new("fd").arg("--version").output();
 
         let search_cmd = match output {
@@ -138,15 +137,36 @@ impl App {
             .spawn()
             .expect("Failed to start fd");
 
-        let fzf_output = Command::new("fzf")
-            .stdin(output.stdout.unwrap())
+        //self.fdlist = output.stdout;
+        let stdout = output.stdout.expect("Failed to capture stdout");
+        let reader = BufReader::new(stdout);
+
+        self.fdlist = reader.lines().filter_map(Result::ok).collect();
+    }
+
+    fn run_search_cmd(&mut self, search_term: String) -> Vec<String> {
+        let input = self.fdlist.join("\n");
+
+        let mut fzf = Command::new("fzf")
             .arg("--filter")
             .arg(search_term)
-            .output()
+            .stdin(Stdio::piped()) // Allow writing to stdin
+            .stdout(Stdio::piped()) // Capture output
+            .spawn()
             .expect("Failed to run fzf");
 
+        // Write the input to fzf
+        if let Some(mut fzf_stdin) = fzf.stdin.take() {
+            fzf_stdin
+                .write_all(input.as_bytes())
+                .expect("Failed to write to fzf stdin");
+        }
+
+        // Capture fzf output
+        let output = fzf.wait_with_output().expect("Failed to read fzf output");
+
         let selected_files =
-            std::str::from_utf8(&fzf_output.stdout).expect("Invalid UTF-8 output from fzf");
+            std::str::from_utf8(&output.stdout).expect("Invalid UTF-8 output from fzf");
 
         selected_files
             .lines()
@@ -158,10 +178,12 @@ impl App {
         if self.filelist.len() == 0 {
             return vec![];
         }
-        let output = Command::new("cat")
+        let output = Command::new("head")
+            .arg("-n")
+            .arg("50")
             .arg(file)
             .output()
-            .expect("Failed to run cat");
+            .expect("Failed to run head");
 
         match std::str::from_utf8(&output.stdout) {
             Ok(output_str) => {
@@ -281,6 +303,10 @@ impl App {
                 code: KeyCode::Char('j'),
                 modifiers: KeyModifiers::CONTROL,
                 ..
+            }
+            | KeyEvent {
+                code: KeyCode::Down,
+                ..
             } => {
                 if self.switch_focus {
                     if self.filelist.len() == 0 {
@@ -311,9 +337,12 @@ impl App {
                 }
             }
             KeyEvent {
-                code: KeyCode::Char('k'),
+                code: KeyCode::Char('k') | KeyCode::Up,
                 modifiers: KeyModifiers::CONTROL,
                 ..
+            }
+            | KeyEvent {
+                code: KeyCode::Up, ..
             } => {
                 if self.switch_focus {
                     if self.filelist.len() == 0 {
@@ -372,6 +401,13 @@ impl App {
                     self.preview =
                         self.run_preview_cmd(self.recent_files[self.highlightedfile].clone());
                 }
+            }
+            KeyEvent {
+                code: KeyCode::Char('r'),
+                modifiers: KeyModifiers::CONTROL,
+                ..
+            } => {
+                self.run_fd_cmd();
             }
             _ => {}
         };
