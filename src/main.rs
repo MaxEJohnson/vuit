@@ -1,6 +1,10 @@
+use std::fs;
 use std::io::prelude::*;
 use std::io::{self, BufReader};
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
+
+use dirs;
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
@@ -15,8 +19,13 @@ use ratatui::{
 
 use clap::Command as OtherCommand;
 
+use serde::{Deserialize, Serialize};
+
 #[derive(Debug, Default)]
 pub struct Vuit {
+    // Config
+    config: VuitRC,
+
     // Input
     typed_input: String,
 
@@ -96,20 +105,20 @@ impl Vuit {
 
         let search_para = Paragraph::new(input)
             .block(search_block)
-            .style(Style::default().fg(Color::LightBlue));
+            .style(Style::default().fg(grab_config_color(&self.config.colorscheme)));
 
         let file_list_list = List::new(self.file_list.to_owned())
             .block(file_list_block)
-            .style(Style::default().fg(Color::LightBlue))
+            .style(Style::default().fg(grab_config_color(&self.config.colorscheme)))
             .highlight_style(Style::default().fg(Color::White).bg(Color::Blue));
 
         let preview_list = List::new(self.preview.to_owned())
             .block(preview_block)
-            .style(Style::default().fg(Color::LightBlue));
+            .style(Style::default().fg(grab_config_color(&self.config.colorscheme)));
 
         let recent_files_list = List::new(self.recent_files.to_owned())
             .block(recentfiles_block)
-            .style(Style::default().fg(Color::LightBlue))
+            .style(Style::default().fg(grab_config_color(&self.config.colorscheme)))
             .highlight_style(Style::default().fg(Color::White).bg(Color::Blue));
 
         // Layout Description
@@ -298,7 +307,7 @@ impl Vuit {
                 code: KeyCode::Enter,
                 ..
             } => {
-                // Start Vim on highlighted file when Enter is pressed
+                // Start editor on highlighted file when Enter is pressed
                 if self.file_list.len() == 0 {
                     return;
                 }
@@ -315,18 +324,18 @@ impl Vuit {
                 }
 
                 if self.switch_focus {
-                    let _ = Command::new("vim")
+                    let _ = Command::new(&self.config.editor.to_string())
                         .arg(self.file_list[self.hltd_file].to_owned())
                         .status()
-                        .expect("Failed to start vim");
+                        .expect("Failed to start selected editor");
                 } else {
-                    let _ = Command::new("vim")
+                    let _ = Command::new(&self.config.editor.to_string())
                         .arg(self.recent_files[self.hltd_file].to_owned())
                         .status()
-                        .expect("Failed to start vim");
+                        .expect("Failed to start selected editor");
                 }
 
-                // Clear terminal on exit from Vim
+                // Clear terminal on exit from editor
                 let _ = terminal.clear();
                 let _ = terminal.draw(|frame| self.ui(frame));
             }
@@ -452,6 +461,43 @@ impl Vuit {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct VuitRC {
+    colorscheme: String,
+    editor: String,
+}
+
+// Eventually bake in default colorschemes like gruvbox, tokyonight, etc
+fn grab_config_color(color_str: &str) -> Color {
+    match color_str.to_lowercase().as_str() {
+        "blue" => Color::Blue,
+        "red" => Color::Green,
+        "green" => Color::Green,
+        "lightblue" => Color::LightBlue,
+        "lightred" => Color::LightRed,
+        "lightgreen" => Color::LightGreen,
+        &_ => Color::LightBlue,
+    }
+}
+
+impl Default for VuitRC {
+    fn default() -> Self {
+        Self {
+            colorscheme: "lightblue".to_string(),
+            editor: "vim".to_string(),
+        }
+    }
+}
+
+fn expand_tilde(path: &str) -> PathBuf {
+    if path.starts_with("~") {
+        if let Some(home_dir) = dirs::home_dir() {
+            return home_dir.join(&path[2..]); // Replace `~` with the home directory
+        }
+    }
+    PathBuf::from(path)
+}
+
 fn main() -> io::Result<()> {
     // Versioning
     let matches = OtherCommand::new("vuit")
@@ -464,9 +510,39 @@ fn main() -> io::Result<()> {
         return Ok(());
     }
 
+    // Load Configuration of Vuit
+    let vuitrc_path = expand_tilde("~/.vuit/.vuitrc");
+
+    let contents = match fs::read_to_string(vuitrc_path) {
+        Ok(contents) => contents,
+        Err(e) => {
+            eprintln!("Failed to parse JSON: {:?}", e);
+            return Ok(());
+        } // Err(_) => String::new(),
+    };
+
+    let config = if !contents.is_empty() {
+        match serde_json::from_str::<VuitRC>(&contents) {
+            Ok(config) => config,
+            Err(e) => {
+                eprintln!("Failed to parse JSON: {}", e);
+                return Ok(());
+            }
+        }
+    } else {
+        VuitRC::default();
+        return Ok(());
+    };
+
     // Vuit App Start
     let mut terminal = ratatui::init();
-    let vuit_result = Vuit::default().run(&mut terminal);
+
+    let vuit_app = &mut Vuit {
+        config: config,
+        ..Default::default()
+    };
+
+    let vuit_result = vuit_app.run(&mut terminal);
     ratatui::restore();
     vuit_result
 }
