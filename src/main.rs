@@ -560,10 +560,7 @@ fn main() -> io::Result<()> {
 
     let contents = match fs::read_to_string(vuitrc_path) {
         Ok(contents) => contents,
-        Err(e) => {
-            eprintln!("Failed to parse JSON: {:?}", e);
-            return Ok(());
-        } // Err(_) => String::new(),
+        Err(_) => String::new(),
     };
 
     let config = if !contents.is_empty() {
@@ -575,8 +572,7 @@ fn main() -> io::Result<()> {
             }
         }
     } else {
-        VuitRC::default();
-        return Ok(());
+        VuitRC::default()
     };
 
     // Vuit App Start
