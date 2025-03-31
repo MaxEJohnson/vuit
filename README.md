@@ -22,6 +22,41 @@ TAB - Switch between the "Files" window and the "Recent" window.
 
 \<C-r\> - Refresh CWD file scan.
 
+\<C-n\> - Cycle through colorschemes.
+
 ESC - Exit vuit.
 
 All other keystrokes will populate the "Search" input window to filter the "Files" window output.
+
+## .vuitrc
+
+To add your own configurations that are static.
+
+    1. Create ~/.vuit/.vuitrc
+    2. Populate the three JSON attributes: { colorscheme, highlight_color, editor }
+
+### colorscheme (WIP)
+
+Select from the following colors to be the base text and window color:
+
+    - red, green, blue, cyan, yellow, lightred, lightgreen, lightblue, lightcyan, lightyellow.
+
+### highlight_color (WIP)
+
+Select from the following colors to be the selector color:
+
+    - red, green, blue, cyan, yellow, lightred, lightgreen, lightblue, lightcyan, lightyellow.
+
+### editor (WIP)
+
+Selection is up to the user. Examples: vim, nvim, ... nano 
+
+### Example .vuitrc
+
+```json
+{
+    "colorscheme": "Cyan",
+    "highlight_color": "Blue",
+    "editor": "vim"
+}
+```
