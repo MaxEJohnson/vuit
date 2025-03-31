@@ -25,6 +25,7 @@ use serde::{Deserialize, Serialize};
 pub struct Vuit {
     // Config
     config: VuitRC,
+    colorscheme_index: usize,
 
     // Input
     typed_input: String,
@@ -110,7 +111,11 @@ impl Vuit {
         let file_list_list = List::new(self.file_list.to_owned())
             .block(file_list_block)
             .style(Style::default().fg(grab_config_color(&self.config.colorscheme)))
-            .highlight_style(Style::default().fg(Color::White).bg(Color::Blue));
+            .highlight_style(
+                Style::default()
+                    .fg(Color::White)
+                    .bg(grab_config_color(&self.config.highlight_color)),
+            );
 
         let preview_list = List::new(self.preview.to_owned())
             .block(preview_block)
@@ -119,7 +124,11 @@ impl Vuit {
         let recent_files_list = List::new(self.recent_files.to_owned())
             .block(recentfiles_block)
             .style(Style::default().fg(grab_config_color(&self.config.colorscheme)))
-            .highlight_style(Style::default().fg(Color::White).bg(Color::Blue));
+            .highlight_style(
+                Style::default()
+                    .fg(Color::White)
+                    .bg(grab_config_color(&self.config.highlight_color)),
+            );
 
         // Layout Description
         let chunks = Layout::default()
@@ -239,6 +248,15 @@ impl Vuit {
                     .collect::<Vec<String>>()
             }
         }
+    }
+
+    fn next_colorscheme(&mut self, terminal: &mut DefaultTerminal) {
+        self.colorscheme_index = (self.colorscheme_index + 1) % COLORS.len();
+        self.config.colorscheme = COLORS[self.colorscheme_index].to_string();
+        self.config.highlight_color =
+            COLORS[(self.colorscheme_index + 1) % COLORS.len()].to_string();
+
+        let _ = terminal.draw(|frame| self.ui(frame));
     }
 
     fn handle_key_event(&mut self, key_event: KeyEvent, terminal: &mut DefaultTerminal) {
@@ -456,6 +474,13 @@ impl Vuit {
                 // Refresh list of available files (e.g. after adding a new file, etc, ...)
                 self.run_fd_cmd();
             }
+            KeyEvent {
+                code: KeyCode::Char('n'),
+                modifiers: KeyModifiers::CONTROL,
+                ..
+            } => {
+                self.next_colorscheme(terminal);
+            }
             _ => {}
         };
     }
@@ -464,18 +489,23 @@ impl Vuit {
 #[derive(Debug, Serialize, Deserialize)]
 struct VuitRC {
     colorscheme: String,
+    highlight_color: String,
     editor: String,
 }
 
 // Eventually bake in default colorschemes like gruvbox, tokyonight, etc
 fn grab_config_color(color_str: &str) -> Color {
     match color_str.to_lowercase().as_str() {
-        "blue" => Color::Blue,
-        "red" => Color::Green,
-        "green" => Color::Green,
         "lightblue" => Color::LightBlue,
+        "blue" => Color::Blue,
         "lightred" => Color::LightRed,
+        "red" => Color::Green,
         "lightgreen" => Color::LightGreen,
+        "green" => Color::Green,
+        "lightcyan" => Color::LightCyan,
+        "cyan" => Color::Cyan,
+        "lightyellow" => Color::LightYellow,
+        "yellow" => Color::Yellow,
         &_ => Color::LightBlue,
     }
 }
@@ -484,6 +514,7 @@ impl Default for VuitRC {
     fn default() -> Self {
         Self {
             colorscheme: "lightblue".to_string(),
+            highlight_color: "blue".to_string(),
             editor: "vim".to_string(),
         }
     }
@@ -497,6 +528,20 @@ fn expand_tilde(path: &str) -> PathBuf {
     }
     PathBuf::from(path)
 }
+
+// Needs to be workshopped, temporary for now
+const COLORS: &[&str] = &[
+    "lightblue",
+    "cyan",
+    "lightgreen",
+    "yellow",
+    "lightred",
+    "green",
+    "lightcyan",
+    "blue",
+    "lightyellow",
+    "red",
+];
 
 fn main() -> io::Result<()> {
     // Versioning
