@@ -203,6 +203,13 @@ impl Vuit {
         matches.into_iter().map(|(_, item)| item.clone()).collect()
     }
 
+    fn clean_utf8_content(&mut self, content: &str) -> String {
+        content
+            .chars()
+            .filter(|&c| c.is_ascii_graphic() || c == '\n' || c == ' ')
+            .collect()
+    }
+
     fn run_preview_cmd(&mut self) -> Vec<String> {
         let file_list = if self.switch_focus {
             &self.file_list
@@ -223,6 +230,7 @@ impl Vuit {
                     .lines()
                     .take(50)
                     .filter_map(Result::ok)
+                    .map(|line| self.clean_utf8_content(&line))
                     .collect::<Vec<String>>()
             }
             Err(_) => vec!["No Preview Available".to_string()],
