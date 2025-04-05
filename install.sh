@@ -7,18 +7,6 @@ NC='\033[0m'
 MAC_VERSION=0.4.0
 LINUX_VERSION=0.4.0
 
-
-echo -e "${NC}Installing fd and fzf${NC}"
-if [[ $OSTYPE == linux-* ]]; then
-    sudo apt install fd-find
-    sudo apt install fzf
-else
-    brew install fd
-    brew install fzf
-fi
-
-echo -e "${GREEN}Dependencies installed${NC}"
-
 echo -e "${NC}Installing vuit${NC}"
 if [[ $OSTYPE == linux-* ]]; then
     curl -L -O https://github.com/MaxEJohnson/vuit/releases/download/v${LINUX_VERSION}/vuit_${LINUX_VERSION}_amd64.deb
