@@ -1,12 +1,17 @@
 use std::fs;
-use std::io::prelude::*;
-use std::io::{self, BufReader};
+use std::fs::File;
+use std::io::{self, BufRead, BufReader};
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 use dirs;
 
+use ignore::WalkBuilder;
+
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+
+use fuzzy_matcher::skim::SkimMatcherV2;
+use fuzzy_matcher::FuzzyMatcher;
 
 use ratatui::{
     prelude::{Constraint, Direction, Layout},
@@ -17,7 +22,7 @@ use ratatui::{
     DefaultTerminal, Frame,
 };
 
-use clap::Command as OtherCommand;
+use clap::Command as ClapCommand;
 
 use serde::{Deserialize, Serialize};
 
@@ -163,90 +168,64 @@ impl Vuit {
         Ok(())
     }
 
-    fn run_fd_cmd(&mut self) -> () {
-        let output = Command::new("fd").arg("--version").output();
+    fn run_fd_cmd(&mut self) {
+        let mut results = Vec::new();
 
-        let search_cmd = match output {
-            Ok(_output) => "fd",
-            Err(_) => "fdfind",
-        };
+        for result in WalkBuilder::new(".").standard_filters(true).build() {
+            if let Ok(entry) = result {
+                let path = entry.path();
+                if path.is_file() {
+                    if let Some(path_str) = path.to_str() {
+                        results.push(path_str.to_string());
+                    }
+                }
+            }
+        }
 
-        let output = Command::new(search_cmd)
-            .arg("-t")
-            .arg("f")
-            .stdout(Stdio::piped())
-            .spawn()
-            .expect("Failed to start fd");
-
-        //self.fd_list = output.stdout;
-        let stdout = output.stdout.expect("Failed to capture stdout");
-        let reader = BufReader::new(stdout);
-
-        self.fd_list = reader.lines().filter_map(Result::ok).collect();
+        self.fd_list = results;
     }
 
     fn run_search_cmd(&mut self) -> Vec<String> {
-        let input = self.fd_list.join("\n");
+        let matcher = SkimMatcherV2::default();
 
-        let mut fzf = Command::new("fzf")
-            .arg("--filter")
-            .arg(&self.typed_input)
-            .stdin(Stdio::piped()) // Allow writing to stdin
-            .stdout(Stdio::piped()) // Capture output
-            .spawn()
-            .expect("Failed to run fzf");
+        let mut matches: Vec<(i64, &String)> = self
+            .fd_list
+            .iter()
+            .filter_map(|item| {
+                matcher
+                    .fuzzy_match(item, &self.typed_input)
+                    .map(|score| (score, item))
+            })
+            .collect();
 
-        if let Some(mut fzf_stdin) = fzf.stdin.take() {
-            fzf_stdin
-                .write_all(input.as_bytes())
-                .expect("Failed to write to fzf stdin");
-        }
+        matches.sort_by(|a, b| b.0.cmp(&a.0));
 
-        let output = fzf.wait_with_output().expect("Failed to read fzf output");
-
-        let selected_files =
-            std::str::from_utf8(&output.stdout).expect("Invalid UTF-8 output from fzf");
-
-        selected_files
-            .lines()
-            .map(|line| line.to_string())
-            .collect::<Vec<String>>()
+        matches.into_iter().map(|(_, item)| item.clone()).collect()
     }
 
     fn run_preview_cmd(&mut self) -> Vec<String> {
-        if self.file_list.len() == 0 {
+        let file_list = if self.switch_focus {
+            &self.file_list
+        } else {
+            &self.recent_files
+        };
+
+        if file_list.is_empty() {
             return vec![];
         }
 
-        let output = if self.switch_focus {
-            Command::new("head")
-                .arg("-n")
-                .arg("50")
-                .arg(&self.file_list[self.hltd_file])
-                .output()
-        } else {
-            Command::new("head")
-                .arg("-n")
-                .arg("50")
-                .arg(&self.recent_files[self.hltd_file])
-                .output()
-        };
+        let file_path = &file_list[self.hltd_file];
 
-        match std::str::from_utf8(&output.unwrap().stdout) {
-            Ok(output_str) => {
-                // If the output is valid UTF-8, process the lines
-                output_str
+        match File::open(file_path) {
+            Ok(file) => {
+                let reader = BufReader::new(file);
+                reader
                     .lines()
-                    .map(|line| line.to_string())
+                    .take(50)
+                    .filter_map(Result::ok)
                     .collect::<Vec<String>>()
             }
-            Err(_) => {
-                // If the output is not valid UTF-8, return an empty vector
-                "No Preview Available"
-                    .split("\n")
-                    .map(|line| line.to_string())
-                    .collect::<Vec<String>>()
-            }
+            Err(_) => vec!["No Preview Available".to_string()],
         }
     }
 
@@ -545,7 +524,7 @@ const COLORS: &[&str] = &[
 
 fn main() -> io::Result<()> {
     // Versioning
-    let matches = OtherCommand::new("vuit")
+    let matches = ClapCommand::new("vuit")
         .version(env!("CARGO_PKG_VERSION")) // Uses the version from Cargo.toml
         .about("Vim User Interface Terminal - A Buffer Manager for Vim")
         .get_matches();

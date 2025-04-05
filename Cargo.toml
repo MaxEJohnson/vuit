@@ -1,6 +1,6 @@
 [package]
 name = "vuit"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["Maxwell Johnson <mjohnsmax@gmail.com>"]
 edition = "2024"
 description = "A Buffer Manager for Vim."
@@ -11,13 +11,15 @@ clap = "4.5.32"
 colored = "3.0.0"
 crossterm = "0.28.1"
 dirs = "6.0.0"
+fuzzy-matcher = "0.3.7"
+ignore = "0.4.23"
 ratatui = "0.29.0"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 
 [package.metadata.deb]
 maintainer = "Maxwell Johnson <mjohnsmax@gmail.com>"
-depends = "vim, fd-find, fzf"
+depends = "vim"
 section = "utils"
 priority = "optional"
 revision = "0"
