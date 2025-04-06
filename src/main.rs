@@ -157,9 +157,12 @@ impl Vuit {
     }
 
     fn render_output(&self) -> Vec<String> {
-        let output = self.process_out.lock().unwrap();
+        let mut display_lines = self.process_out.lock().unwrap().clone();
 
-        output
+        // Reverse the output to display correctly
+        display_lines.reverse();
+
+        display_lines
             .iter()
             .rev()
             .take(20)
@@ -232,7 +235,12 @@ impl Vuit {
             (SEARCH_BAR_NUM_LINES, 0)
         };
 
-        let content_lines = if frame.area().height.checked_sub(search_lines+terminal_lines) > Some(0) {
+        let content_lines = if frame
+            .area()
+            .height
+            .checked_sub(search_lines + terminal_lines)
+            > Some(0)
+        {
             frame.area().height - search_lines - terminal_lines
         } else {
             frame.area().height
@@ -252,11 +260,12 @@ impl Vuit {
             .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
             .split(chunks[0]);
 
-        let top_chunks_left_length = if top_chunks[0].height.checked_sub(RECENT_BUFFERS_NUM_LINES) > Some(0) {
-            top_chunks[0].height - RECENT_BUFFERS_NUM_LINES
-        } else {
-            top_chunks[0].height
-        };
+        let top_chunks_left_length =
+            if top_chunks[0].height.checked_sub(RECENT_BUFFERS_NUM_LINES) > Some(0) {
+                top_chunks[0].height - RECENT_BUFFERS_NUM_LINES
+            } else {
+                top_chunks[0].height
+            };
 
         let left_chunks = Layout::default()
             .direction(Direction::Vertical)
