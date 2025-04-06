@@ -104,7 +104,8 @@ impl Vuit {
 
     fn start_term(&mut self) {
         let mut child = Command::new("bash")
-            .arg("-i")
+            .arg("-c")
+            .arg("bash")
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .stdin(Stdio::piped())
@@ -231,7 +232,11 @@ impl Vuit {
             (SEARCH_BAR_NUM_LINES, 0)
         };
 
-        let content_lines = frame.area().height - search_lines - terminal_lines;
+        let content_lines = if frame.area().height.checked_sub(search_lines+terminal_lines) > Some(0) {
+            frame.area().height - search_lines - terminal_lines
+        } else {
+            frame.area().height
+        };
 
         // Layout Description
         let chunks = Layout::default()
@@ -247,11 +252,17 @@ impl Vuit {
             .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
             .split(chunks[0]);
 
+        let top_chunks_left_length = if top_chunks[0].height.checked_sub(RECENT_BUFFERS_NUM_LINES) > Some(0) {
+            top_chunks[0].height - RECENT_BUFFERS_NUM_LINES
+        } else {
+            top_chunks[0].height
+        };
+
         let left_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(RECENT_BUFFERS_NUM_LINES),
-                Constraint::Length(top_chunks[0].height - RECENT_BUFFERS_NUM_LINES),
+                Constraint::Length(top_chunks_left_length),
             ])
             .split(top_chunks[0]);
 
