@@ -24,6 +24,8 @@ TAB - Switch between the "Files" window and the "Recent" window.
 
 \<C-n\> - Cycle through colorschemes.
 
+\<C-t\> - Toggle Terminal
+
 ESC - Exit vuit.
 
 All other keystrokes will populate the "Search" input window to filter the "Files" window output.
