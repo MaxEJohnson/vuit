@@ -7,8 +7,6 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use dirs;
-
 use ignore::WalkBuilder;
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
@@ -87,7 +85,7 @@ impl Vuit {
         self.file_list = self.run_search_cmd();
         self.file_list_state.select(Some(self.hltd_file));
 
-        if self.hltd_file >= self.file_list.len() && self.file_list.len() > 0 {
+        if self.hltd_file >= self.file_list.len() && !self.file_list.is_empty() {
             self.hltd_file = self.file_list.len() - 1;
         }
 
@@ -154,31 +152,27 @@ impl Vuit {
 
     fn send_cmd_to_proc_term(&mut self) {
         // For safety, so that users do not accidentally crash vuit
-        let command = self.typed_input.trim_start_matches(';').to_string();
+        let mut command = self.typed_input.trim_start_matches(';').to_string();
         match command.as_str() {
             "vuit" => {
                 self.term_out = vec!["Nice Try".to_string()];
-                return;
             }
             "exit" => {
                 self.restart_terminal_session();
                 self.toggle_terminal = !self.toggle_terminal;
-                return;
             }
             "quit" => {
                 self.restart_terminal_session();
                 self.toggle_terminal = !self.toggle_terminal;
-                return;
             }
             "restart" => {
                 self.restart_terminal_session();
-                return;
             }
             _ => {
+                command.push_str(" 2>&1");
                 if let Some(ref mut bash_stdin) = *self.command_sender.lock().unwrap() {
                     match writeln!(bash_stdin, "{}", command) {
-                        Ok(_) => {}
-                        Err(_) => {}
+                        _ => {}
                     };
                 }
             }
@@ -396,7 +390,7 @@ impl Vuit {
 
         let matches_c: Vec<_> = matches
             .into_iter()
-            .map(|(_, s)| clean_utf8_content(&s))
+            .map(|(_, s)| clean_utf8_content(s))
             .collect();
 
         matches_c.iter().map(|s| s.to_string()).collect()
@@ -463,7 +457,7 @@ impl Vuit {
                 code: KeyCode::Backspace,
                 ..
             } => {
-                if self.typed_input.len() == 0 {
+                if self.typed_input.is_empty() {
                     return;
                 }
 
@@ -524,19 +518,19 @@ impl Vuit {
                 self.typed_input.push(c);
                 self.file_list = self.run_search_cmd();
 
-                if self.file_list.len() == 0 {
+                if self.file_list.is_empty() {
                     return;
                 }
 
                 if self.switch_focus {
                     self.file_list_state.select(Some(self.hltd_file));
-                    if self.hltd_file >= self.file_list.len() && self.file_list.len() > 0 {
+                    if self.hltd_file >= self.file_list.len() && !self.file_list.is_empty() {
                         self.hltd_file = self.file_list.len() - 1;
                     }
                     self.preview = self.run_preview_cmd();
                 } else {
                     self.recent_state.select(Some(self.hltd_file));
-                    if self.hltd_file >= self.recent_files.len() && self.recent_files.len() > 0 {
+                    if self.hltd_file >= self.recent_files.len() && !self.recent_files.is_empty() {
                         self.hltd_file = self.recent_files.len() - 1;
                     }
                 }
@@ -547,26 +541,26 @@ impl Vuit {
             } => {
                 // FZF search after each backspace
 
-                if self.typed_input.len() == 0 {
+                if self.typed_input.is_empty() {
                     return;
                 }
 
                 self.typed_input.pop();
                 self.file_list = self.run_search_cmd();
 
-                if self.file_list.len() == 0 {
+                if self.file_list.is_empty() {
                     return;
                 }
 
                 if self.switch_focus {
                     self.file_list_state.select(Some(self.hltd_file));
-                    if self.hltd_file >= self.file_list.len() && self.file_list.len() > 0 {
+                    if self.hltd_file >= self.file_list.len() && !self.file_list.is_empty() {
                         self.hltd_file = self.file_list.len() - 1;
                     }
                     self.preview = self.run_preview_cmd();
                 } else {
                     self.recent_state.select(Some(self.hltd_file));
-                    if self.hltd_file >= self.recent_files.len() && self.recent_files.len() > 0 {
+                    if self.hltd_file >= self.recent_files.len() && !self.recent_files.is_empty() {
                         self.hltd_file = self.recent_files.len() - 1;
                     }
                 }
@@ -576,15 +570,14 @@ impl Vuit {
                 ..
             } => {
                 // Start editor on highlighted file when Enter is pressed
-                if self.file_list.len() == 0 {
+                if self.file_list.is_empty() {
                     return;
                 }
 
-                if self.switch_focus {
-                    if !self.recent_files.contains(&self.file_list[self.hltd_file]) {
-                        self.recent_files
-                            .push(self.file_list[self.hltd_file].to_owned());
-                    }
+                if self.switch_focus && !self.recent_files.contains(&self.file_list[self.hltd_file])
+                {
+                    self.recent_files
+                        .push(self.file_list[self.hltd_file].to_owned());
                 }
 
                 if self.recent_files.len() > 5 {
@@ -592,13 +585,13 @@ impl Vuit {
                 }
 
                 if self.switch_focus {
-                    let _ = Command::new(&self.config.editor.to_string())
-                        .arg(self.file_list[self.hltd_file].to_owned())
+                    let _ = Command::new(&self.config.editor)
+                        .arg(&self.file_list[self.hltd_file])
                         .status()
                         .expect("Failed to start selected editor");
                 } else {
-                    let _ = Command::new(&self.config.editor.to_string())
-                        .arg(self.recent_files[self.hltd_file].to_owned())
+                    let _ = Command::new(&self.config.editor)
+                        .arg(&self.recent_files[self.hltd_file])
                         .status()
                         .expect("Failed to start selected editor");
                 }
@@ -624,25 +617,23 @@ impl Vuit {
             } => {
                 // Navigate file list down
                 if self.switch_focus {
-                    if self.file_list.len() == 0 {
+                    if self.file_list.is_empty() {
                         return;
                     }
-                } else {
-                    if self.recent_files.len() == 0 {
-                        return;
-                    }
+                } else if self.recent_files.is_empty() {
+                    return;
                 }
 
                 self.hltd_file += 1;
 
                 if self.switch_focus {
-                    if self.hltd_file >= self.file_list.len() && self.file_list.len() > 0 {
+                    if self.hltd_file >= self.file_list.len() && !self.file_list.is_empty() {
                         self.hltd_file = self.file_list.len() - 1;
                     }
                     self.file_list_state.select(Some(self.hltd_file));
                     self.preview = self.run_preview_cmd();
                 } else {
-                    if self.hltd_file >= self.recent_files.len() && self.recent_files.len() > 0 {
+                    if self.hltd_file >= self.recent_files.len() && !self.recent_files.is_empty() {
                         self.hltd_file = self.recent_files.len() - 1;
                     }
                     self.recent_state.select(Some(self.hltd_file));
@@ -659,13 +650,11 @@ impl Vuit {
             } => {
                 // Navigate file list up
                 if self.switch_focus {
-                    if self.file_list.len() == 0 {
+                    if self.file_list.is_empty() {
                         return;
                     }
-                } else {
-                    if self.recent_files.len() == 0 {
-                        return;
-                    }
+                } else if self.recent_files.is_empty() {
+                    return;
                 }
 
                 if self.hltd_file == 0 {
@@ -675,13 +664,13 @@ impl Vuit {
                 self.hltd_file -= 1;
 
                 if self.switch_focus {
-                    if self.hltd_file >= self.file_list.len() && self.file_list.len() > 0 {
+                    if self.hltd_file >= self.file_list.len() && !self.file_list.is_empty() {
                         self.hltd_file = self.file_list.len() - 1;
                     }
                     self.file_list_state.select(Some(self.hltd_file));
                     self.preview = self.run_preview_cmd();
                 } else {
-                    if self.hltd_file >= self.recent_files.len() && self.recent_files.len() > 0 {
+                    if self.hltd_file >= self.recent_files.len() && !self.recent_files.is_empty() {
                         self.hltd_file = self.recent_files.len() - 1;
                     }
                     self.recent_state.select(Some(self.hltd_file));
@@ -692,7 +681,7 @@ impl Vuit {
                 code: KeyCode::Tab, ..
             } => {
                 // Switch between recent and search files
-                if self.recent_files.len() == 0 {
+                if self.recent_files.is_empty() {
                     return;
                 }
 
@@ -702,7 +691,7 @@ impl Vuit {
                     self.recent_state.select(None);
                     self.hltd_file = 0;
                     self.file_list_state.select(Some(self.hltd_file));
-                    if self.file_list.len() == 0 {
+                    if self.file_list.is_empty() {
                         return;
                     }
                     self.preview = self.run_preview_cmd();
@@ -710,7 +699,7 @@ impl Vuit {
                     self.file_list_state.select(None);
                     self.hltd_file = 0;
                     self.recent_state.select(Some(self.hltd_file));
-                    if self.recent_files.len() == 0 {
+                    if self.recent_files.is_empty() {
                         return;
                     }
                     self.preview = self.run_preview_cmd();
@@ -816,10 +805,7 @@ fn main() -> io::Result<()> {
     // Load Configuration of Vuit
     let vuitrc_path = expand_tilde("~/.vuit/.vuitrc");
 
-    let contents = match fs::read_to_string(vuitrc_path) {
-        Ok(contents) => contents,
-        Err(_) => String::new(),
-    };
+    let contents = fs::read_to_string(vuitrc_path).unwrap_or_default();
 
     let config = if !contents.is_empty() {
         match serde_json::from_str::<VuitRC>(&contents) {
@@ -837,7 +823,7 @@ fn main() -> io::Result<()> {
     let mut terminal = ratatui::init();
 
     let vuit_app = &mut Vuit {
-        config: config,
+        config,
         ..Default::default()
     };
 
