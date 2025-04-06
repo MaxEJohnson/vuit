@@ -1,8 +1,11 @@
 use std::fs;
 use std::fs::File;
-use std::io::{self, BufRead, BufReader};
+use std::io::{self, BufRead, BufReader, Write};
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
 
 use dirs;
 
@@ -26,6 +29,12 @@ use clap::Command as ClapCommand;
 
 use serde::{Deserialize, Serialize};
 
+// Constants for number of lines for each section
+const RECENT_BUFFERS_NUM_LINES: u16 = 8;
+const TERMINAL_NUM_LINES: u16 = 20;
+const SEARCH_BAR_NUM_LINES: u16 = 3;
+const PREVIEW_NUM_LINES: u16 = 50;
+
 #[derive(Debug, Default)]
 pub struct Vuit {
     // Config
@@ -40,9 +49,16 @@ pub struct Vuit {
     preview: Vec<String>,
     recent_files: Vec<String>,
     fd_list: Vec<String>,
+    term_out: Vec<String>,
+
+    // Terminal vars
+    bash_process: Option<std::process::Child>,
+    process_out: Arc<Mutex<Vec<String>>>,
+    command_sender: Arc<Mutex<Option<std::process::ChildStdin>>>,
 
     // State Variables
     switch_focus: bool,
+    toggle_terminal: bool,
     hltd_file: usize,
     file_list_state: ListState,
     recent_state: ListState,
@@ -55,6 +71,7 @@ impl Vuit {
     fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
         // Initialize Focus to File List
         self.switch_focus = true;
+        self.toggle_terminal = false;
 
         // Populate fd list
         self.run_fd_cmd();
@@ -70,6 +87,9 @@ impl Vuit {
         // Create Preview of Highlighted File
         self.preview = self.run_preview_cmd();
 
+        // Start terminal Process
+        self.start_term();
+
         // Start Vuit
         while !self.exit {
             terminal.draw(|frame| self.ui(frame))?;
@@ -82,9 +102,78 @@ impl Vuit {
         Ok(())
     }
 
+    fn start_term(&mut self) {
+        let mut child = Command::new("bash")
+            .arg("-i")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .stdin(Stdio::piped())
+            .spawn()
+            .expect("Failed to start bash");
+
+        let stdout = child.stdout.take().expect("Failed to open stdout");
+        let reader = BufReader::new(stdout);
+        let output = self.process_out.clone();
+
+        // Start a thread to read the output of bash
+        thread::spawn(move || {
+            for line in reader.lines() {
+                if let Ok(line_str) = line {
+                    let mut output = output.lock().unwrap();
+                    output.push(line_str);
+                }
+            }
+        });
+
+        // Store bash process and stdin handle for later command writing
+        self.bash_process = Some(child);
+        self.command_sender =
+            Arc::new(Mutex::new(self.bash_process.as_mut().unwrap().stdin.take()));
+    }
+
+    fn send_cmd_to_proc_term(&mut self) {
+        // For safety, so that users do not accidentally crash vuit
+        match self.typed_input.as_str() {
+            "vuit" => {
+                self.term_out = vec!["Nice Try".to_string()];
+                return;
+            }
+            "exit" => {
+                self.toggle_terminal = !self.toggle_terminal;
+                return;
+            }
+            "quit" => {
+                self.toggle_terminal = !self.toggle_terminal;
+                return;
+            }
+            _ => {
+                if let Some(ref mut bash_stdin) = *self.command_sender.lock().unwrap() {
+                    write!(bash_stdin, "{}\n", self.typed_input.to_owned())
+                        .expect("Failed to write to bash stdin");
+                }
+            }
+        }
+    }
+
+    fn render_output(&self) -> Vec<String> {
+        let output = self.process_out.lock().unwrap();
+
+        output
+            .iter()
+            .rev()
+            .take(20)
+            .map(|s| s.to_string())
+            .collect::<Vec<_>>()
+    }
+
     fn ui(&mut self, frame: &mut Frame) {
         // Window Titles
-        let search_title = Line::from(" Search ".underlined());
+        let search_title = if self.toggle_terminal {
+            Line::from(" Command Line ".underlined())
+        } else {
+            Line::from(" Search ".underlined())
+        };
+
         let preview_title = Line::from(" Preview ".underlined());
         let file_list_title = Line::from(" Files ".underlined());
         let recent_files_title = Line::from(" Recent ".underlined());
@@ -135,10 +224,22 @@ impl Vuit {
                     .bg(grab_config_color(&self.config.highlight_color)),
             );
 
+        // Defining toggle terminal line lengths
+        let (search_lines, terminal_lines) = if self.toggle_terminal {
+            (SEARCH_BAR_NUM_LINES, TERMINAL_NUM_LINES)
+        } else {
+            (SEARCH_BAR_NUM_LINES, 0)
+        };
+
+        let content_lines = frame.area().height - search_lines - terminal_lines;
+
         // Layout Description
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Percentage(95), Constraint::Percentage(5)])
+            .constraints([
+                Constraint::Length(content_lines),
+                Constraint::Length(search_lines + terminal_lines),
+            ])
             .split(frame.area());
 
         let top_chunks = Layout::default()
@@ -148,23 +249,67 @@ impl Vuit {
 
         let left_chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Percentage(30), Constraint::Percentage(70)])
+            .constraints([
+                Constraint::Length(RECENT_BUFFERS_NUM_LINES),
+                Constraint::Length(top_chunks[0].height - RECENT_BUFFERS_NUM_LINES),
+            ])
             .split(top_chunks[0]);
+
+        let search_terminal_chunks = if self.toggle_terminal {
+            Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Length(terminal_lines),
+                    Constraint::Length(search_lines),
+                ])
+                .split(chunks[1])
+        } else {
+            chunks
+        };
 
         // Rendering of Windows
         frame.render_stateful_widget(recent_files_list, left_chunks[0], &mut self.recent_state);
         frame.render_stateful_widget(file_list_list, left_chunks[1], &mut self.file_list_state);
         frame.render_widget(preview_list, top_chunks[1]);
-        frame.render_widget(search_para, chunks[1]);
+
+        if self.toggle_terminal {
+            // Define terminal paragraph
+            let current_out = self.render_output();
+            self.term_out = current_out;
+
+            let terminal_para = List::new(self.term_out.to_owned())
+                .block(
+                    Block::bordered()
+                        .border_set(border::THICK)
+                        .title(Line::from(" Terminal ".underlined()).centered()),
+                )
+                .style(Style::default().fg(grab_config_color(&self.config.colorscheme)))
+                .highlight_style(
+                    Style::default()
+                        .fg(Color::White)
+                        .bg(grab_config_color(&self.config.highlight_color)),
+                );
+
+            frame.render_widget(terminal_para, search_terminal_chunks[0]);
+            frame.render_widget(search_para, search_terminal_chunks[1]);
+        } else {
+            frame.render_widget(search_para, search_terminal_chunks[1]);
+        }
     }
 
     fn handle_events(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
-        match event::read()? {
-            Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
-                self.handle_key_event(key_event, terminal);
-            }
-            _ => {}
-        };
+        if event::poll(Duration::from_millis(100))? {
+            match event::read()? {
+                Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
+                    if self.toggle_terminal {
+                        self.handle_key_event_terminal_emu(key_event, terminal);
+                    } else {
+                        self.handle_key_event(key_event, terminal);
+                    }
+                }
+                _ => {}
+            };
+        }
         Ok(())
     }
 
@@ -223,12 +368,20 @@ impl Vuit {
 
         let file_path = &file_list[self.hltd_file];
 
+        let num_lines = if self.toggle_terminal {
+            PREVIEW_NUM_LINES - TERMINAL_NUM_LINES
+        } else {
+            PREVIEW_NUM_LINES
+        };
+
+        let num_lines: usize = num_lines as usize;
+
         match File::open(file_path) {
             Ok(file) => {
                 let reader = BufReader::new(file);
                 reader
                     .lines()
-                    .take(50)
+                    .take(num_lines)
                     .filter_map(Result::ok)
                     .map(|line| self.clean_utf8_content(&line))
                     .collect::<Vec<String>>()
@@ -244,6 +397,69 @@ impl Vuit {
             COLORS[(self.colorscheme_index + 1) % COLORS.len()].to_string();
 
         let _ = terminal.draw(|frame| self.ui(frame));
+    }
+
+    fn handle_key_event_terminal_emu(
+        &mut self,
+        key_event: KeyEvent,
+        terminal: &mut DefaultTerminal,
+    ) {
+        match key_event {
+            KeyEvent {
+                code: KeyCode::Char(c),
+                modifiers: KeyModifiers::NONE | KeyModifiers::SHIFT,
+                ..
+            } => {
+                self.typed_input.push(c);
+            }
+            KeyEvent {
+                code: KeyCode::Backspace,
+                ..
+            } => {
+                if self.typed_input.len() == 0 {
+                    return;
+                }
+
+                self.typed_input.pop();
+            }
+            KeyEvent {
+                code: KeyCode::Enter,
+                ..
+            } => {
+                self.send_cmd_to_proc_term();
+                self.typed_input.clear();
+                self.process_out.lock().unwrap().clear();
+            }
+            KeyEvent {
+                code: KeyCode::Esc, ..
+            } => {
+                // Exit when Esc is pressed
+                self.exit = true;
+            }
+            KeyEvent {
+                code: KeyCode::Char('r'),
+                modifiers: KeyModifiers::CONTROL,
+                ..
+            } => {
+                // Refresh list of available files (e.g. after adding a new file, etc, ...)
+                self.run_fd_cmd();
+            }
+            KeyEvent {
+                code: KeyCode::Char('n'),
+                modifiers: KeyModifiers::CONTROL,
+                ..
+            } => {
+                self.next_colorscheme(terminal);
+            }
+            KeyEvent {
+                code: KeyCode::Char('t'),
+                modifiers: KeyModifiers::CONTROL,
+                ..
+            } => {
+                self.toggle_terminal = !self.toggle_terminal;
+            }
+            _ => {}
+        };
     }
 
     fn handle_key_event(&mut self, key_event: KeyEvent, terminal: &mut DefaultTerminal) {
@@ -467,6 +683,14 @@ impl Vuit {
                 ..
             } => {
                 self.next_colorscheme(terminal);
+            }
+            KeyEvent {
+                code: KeyCode::Char('t'),
+                modifiers: KeyModifiers::CONTROL,
+                ..
+            } => {
+                self.typed_input.clear();
+                self.toggle_terminal = !self.toggle_terminal;
             }
             _ => {}
         };
