@@ -35,6 +35,13 @@ const TERMINAL_NUM_LINES: u16 = 20;
 const SEARCH_BAR_NUM_LINES: u16 = 3;
 const PREVIEW_NUM_LINES: u16 = 50;
 
+fn clean_utf8_content(content: &str) -> String {
+    content
+        .chars()
+        .filter(|&c| c.is_ascii_graphic() || c == '\n' || c == ' ')
+        .collect()
+}
+
 #[derive(Debug, Default)]
 pub struct Vuit {
     // Config
@@ -132,25 +139,47 @@ impl Vuit {
             Arc::new(Mutex::new(self.bash_process.as_mut().unwrap().stdin.take()));
     }
 
+    fn restart_terminal_session(&mut self) {
+        // Kill the existing bash process if it exists
+        if let Some(mut child) = self.bash_process.take() {
+            child.kill().expect("Failed to kill bash process");
+        }
+
+        // Wait a bit before restarting to ensure it's clean
+        thread::sleep(Duration::from_secs(1));
+
+        // Start a new bash session
+        self.start_term();
+    }
+
     fn send_cmd_to_proc_term(&mut self) {
         // For safety, so that users do not accidentally crash vuit
-        match self.typed_input.as_str() {
+        let command = self.typed_input.trim_start_matches(';').to_string();
+        match command.as_str() {
             "vuit" => {
                 self.term_out = vec!["Nice Try".to_string()];
                 return;
             }
             "exit" => {
+                self.restart_terminal_session();
                 self.toggle_terminal = !self.toggle_terminal;
                 return;
             }
             "quit" => {
+                self.restart_terminal_session();
                 self.toggle_terminal = !self.toggle_terminal;
+                return;
+            }
+            "restart" => {
+                self.restart_terminal_session();
                 return;
             }
             _ => {
                 if let Some(ref mut bash_stdin) = *self.command_sender.lock().unwrap() {
-                    write!(bash_stdin, "{}\n", self.typed_input.to_owned())
-                        .expect("Failed to write to bash stdin");
+                    match writeln!(bash_stdin, "{}", command) {
+                        Ok(_) => {}
+                        Err(_) => {}
+                    };
                 }
             }
         }
@@ -365,14 +394,12 @@ impl Vuit {
 
         matches.sort_by(|a, b| b.0.cmp(&a.0));
 
-        matches.into_iter().map(|(_, item)| item.clone()).collect()
-    }
+        let matches_c: Vec<_> = matches
+            .into_iter()
+            .map(|(_, s)| clean_utf8_content(&s))
+            .collect();
 
-    fn clean_utf8_content(&mut self, content: &str) -> String {
-        content
-            .chars()
-            .filter(|&c| c.is_ascii_graphic() || c == '\n' || c == ' ')
-            .collect()
+        matches_c.iter().map(|s| s.to_string()).collect()
     }
 
     fn run_preview_cmd(&mut self) -> Vec<String> {
@@ -403,7 +430,7 @@ impl Vuit {
                     .lines()
                     .take(num_lines)
                     .filter_map(Result::ok)
-                    .map(|line| self.clean_utf8_content(&line))
+                    .map(|line| clean_utf8_content(&line))
                     .collect::<Vec<String>>()
             }
             Err(_) => vec!["No Preview Available".to_string()],
