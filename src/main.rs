@@ -16,7 +16,7 @@ use fuzzy_matcher::FuzzyMatcher;
 
 use ratatui::{
     prelude::{Constraint, Direction, Layout},
-    style::{Color, Modifier, Style, Stylize},
+    style::{Color, Modifier, Style},
     symbols::border,
     text::{Line, Text},
     widgets::{Block, List, ListState, Paragraph},
@@ -201,18 +201,18 @@ impl Vuit {
     fn ui(&mut self, frame: &mut Frame) {
         // Window Titles
         let search_title = if self.toggle_terminal {
-            Line::from(" Command Line ".underlined())
+            Line::from(" Command Line ")
         } else {
-            Line::from(" Search ".underlined())
+            Line::from(" Search ")
         };
 
-        let preview_title = Line::from(" Preview ".underlined());
-        let file_list_title = Line::from(" Files ".underlined());
-        let recent_files_title = Line::from(" Recent ".underlined());
+        let preview_title = Line::from(" Preview ");
+        let file_list_title = Line::from(" Files ");
+        let recent_files_title = Line::from(" Recent ");
 
         // Window Blocks
         let search_block = Block::bordered()
-            .title(search_title.centered())
+            .title(search_title.left_aligned())
             .border_set(border::THICK);
 
         let preview_block = Block::bordered()
@@ -355,8 +355,9 @@ impl Vuit {
         if self.toggle_help_menu {
             self.help_menu = vec![
                 "(General Commands)".to_string(),
-                "Ctrl-t                 - Toggle terminal window".to_string(),
-                "Ctrl-?                 - Toggle help menu window".to_string(),
+                "<C-t>                  - Toggle terminal window".to_string(),
+                "<C-h>                  - Toggle help menu window".to_string(),
+                "<C-r>                  - Rescan CWD for updates".to_string(),
                 "Esc                    - Exit Vuit".to_string(),
                 "".to_string(),
                 "(File List Focus Commands)".to_string(),
@@ -365,7 +366,7 @@ impl Vuit {
                 "Tab                    - Switch between recent and file windows".to_string(),
                 "".to_string(),
                 "(Terminal Focus Commands)".to_string(),
-                "Ctrl-t                 - Switches focus back to the file list, but terminal session is preserved".to_string(),
+                "<C-t>                  - Switches focus back to the file list, but terminal session is preserved".to_string(),
                 "\"quit\", \"exit\"         - Switches focus back to the file list and restarts the terminal instance".to_string(), 
                 "\"restart\"              - If terminal seems unresponsive, this will restart the session".to_string(),
             ];
@@ -374,7 +375,7 @@ impl Vuit {
                 .block(
                     Block::bordered()
                         .border_set(border::THICK)
-                        .title(Line::from(" Help Menu ".underlined()).centered()),
+                        .title(Line::from(" Help Menu ").centered()),
                 )
                 .style(Style::default().fg(Color::White));
 
@@ -388,7 +389,7 @@ impl Vuit {
                 .block(
                     Block::bordered()
                         .border_set(border::THICK)
-                        .title(Line::from(" Terminal ".underlined()).centered()),
+                        .title(Line::from(" Terminal ").centered()),
                 )
                 .style(Style::default().fg(Color::White))
                 .highlight_style(
