@@ -39,19 +39,19 @@ To add your own configurations that are static.
     1. Create ~/.vuit/.vuitrc
     2. Populate the three JSON attributes: { colorscheme, highlight_color, editor }
 
-### colorscheme (WIP)
+### colorscheme
 
 Select from the following colors to be the base text and window color:
 
     - red, green, blue, cyan, yellow, lightred, lightgreen, lightblue, lightcyan, lightyellow.
 
-### highlight_color (WIP)
+### highlight_color
 
 Select from the following colors to be the selector color:
 
     - red, green, blue, cyan, yellow, lightred, lightgreen, lightblue, lightcyan, lightyellow.
 
-### editor (WIP)
+### editor
 
 Selection is up to the user. Examples: vim, nvim, ... nano 
 
