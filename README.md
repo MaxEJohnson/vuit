@@ -12,23 +12,23 @@ A buffer manager layer for Vim that provides a terminal-like interface to search
 
 ## How-To
 <pre>
-ENTER   - On highlighted file, open Vim.
+ENTER      - On highlighted file, open Vim.
 
-\<C-j\>  - Move down in "Files" window.
+&lt;C-j&gt;      - Move down in "Files" window.
 
-\<C-k\>  - Move up in "Files" window.
+&lt;C-k&gt;      - Move up in "Files" window.
 
-TAB     - Switch between the "Files" window and the "Recent" window.
+TAB        - Switch between the "Files" window and the "Recent" window.
 
-\<C-r\>  - Refresh CWD file scan.
+&lt;C-r&gt;      - Refresh CWD file scan.
 
-\<C-n\>  - Cycle through colorschemes.
+&lt;C-n&gt;      - Cycle through colorschemes.
 
-\<C-t\>  - Toggle Terminal.
+&lt;C-t&gt;      - Toggle Terminal.
 
-\<C-h\>  - Toggle Help Menu.
+&lt;C-h&gt;      - Toggle Help Menu.
 
-ESC    - Exit vuit.
+ESC        - Exit vuit.
 </pre>
 All other keystrokes will populate the "Search" input window to filter the "Files" window output.
 
