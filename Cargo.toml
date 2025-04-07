@@ -1,6 +1,6 @@
 [package]
 name = "vuit"
-version = "0.5.3"
+version = "0.6.0"
 authors = ["Maxwell Johnson <mjohnsmax@gmail.com>"]
 edition = "2024"
 description = "A Buffer Manager for Vim."

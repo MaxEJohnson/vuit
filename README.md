@@ -24,7 +24,9 @@ TAB - Switch between the "Files" window and the "Recent" window.
 
 \<C-n\> - Cycle through colorschemes.
 
-\<C-t\> - Toggle Terminal
+\<C-t\> - Toggle Terminal.
+
+\<C-.\> - Toggle Help Menu.
 
 ESC - Exit vuit.
 
