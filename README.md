@@ -30,32 +30,32 @@ TAB        - Switch between the "Files" window and the "Recent" window.
 
 ESC        - Exit vuit.
 </pre>
-All other keystrokes will populate the "Search" input window to filter the "Files" window output.
+All other keystrokes will populate the "Search/Command Line" input window to either filter the "Files" window output or prep commands for the "Terminal" window.
 
-## .vuitrc
+## Configuration: `.vuitrc`
 
 To add your own configurations that are static.
 
     1. Create ~/.vuit/.vuitrc
     2. Populate the three JSON attributes: { colorscheme, highlight_color, editor }
 
-### colorscheme
+### Attribute: `colorscheme`
 
 Select from the following colors to be the base text and window color:
 
-    - red, green, blue, cyan, yellow, lightred, lightgreen, lightblue, lightcyan, lightyellow.
+    red, green, blue, cyan, yellow, lightred, lightgreen, lightblue, lightcyan, lightyellow.
 
-### highlight_color
+### Attribute: `highlight_color`
 
 Select from the following colors to be the selector color:
 
-    - red, green, blue, cyan, yellow, lightred, lightgreen, lightblue, lightcyan, lightyellow.
+    red, green, blue, cyan, yellow, lightred, lightgreen, lightblue, lightcyan, lightyellow.
 
-### editor
+### Attribute: `editor`
 
 Selection is up to the user. Examples: vim, nvim, ... nano 
 
-### Example .vuitrc
+### Example `.vuitrc`
 
 ```json
 {
