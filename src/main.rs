@@ -561,7 +561,7 @@ impl Vuit {
                 self.toggle_terminal = !self.toggle_terminal;
             }
             KeyEvent {
-                code: KeyCode::Char('.'),
+                code: KeyCode::Char('h'),
                 modifiers: KeyModifiers::CONTROL,
                 ..
             } => {
@@ -797,7 +797,7 @@ impl Vuit {
                 self.toggle_terminal = !self.toggle_terminal;
             }
             KeyEvent {
-                code: KeyCode::Char('.'),
+                code: KeyCode::Char('h'),
                 modifiers: KeyModifiers::CONTROL,
                 ..
             } => {
