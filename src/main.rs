@@ -315,7 +315,7 @@ impl Vuit {
             chunks
         };
 
-        let help_text_box = List::new(vec![" Help -> Ctrl-."])
+        let help_text_box = List::new(vec![" Help -> <C-h>"])
             .block(Block::bordered().border_set(border::THICK))
             .style(
                 Style::default()

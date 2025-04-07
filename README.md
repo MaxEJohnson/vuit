@@ -26,7 +26,7 @@ TAB - Switch between the "Files" window and the "Recent" window.
 
 \<C-t\> - Toggle Terminal.
 
-\<C-.\> - Toggle Help Menu.
+\<C-h\> - Toggle Help Menu.
 
 ESC - Exit vuit.
 
