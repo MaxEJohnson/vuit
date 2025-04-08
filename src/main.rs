@@ -575,7 +575,11 @@ impl Vuit {
                 code: KeyCode::Char('c'),
                 modifiers: KeyModifiers::CONTROL,
                 ..
-            } => self.restart_terminal_session(),
+            } => {
+                if let Some(ref mut bash_stdin) = *self.command_sender.lock().unwrap() {
+                    let _ = bash_stdin.write_all(&[0x003]);
+                }
+            }
             KeyEvent {
                 code: KeyCode::Char('h'),
                 modifiers: KeyModifiers::CONTROL,
