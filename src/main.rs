@@ -27,22 +27,8 @@ use ratatui::{
 use clap::Command as ClapCommand;
 
 use regex::Regex;
+
 use serde::{Deserialize, Serialize};
-
-fn clean_terminal_output(output: &str) -> String {
-    // Regex to match ANSI escape sequences
-    let ansi_escape = Regex::new(r"\x1b\[[0-9;]*[A-Za-z]").unwrap();
-
-    // Remove ANSI escape sequences
-    let cleaned = ansi_escape.replace_all(output, "");
-
-    // Optionally, handle other unwanted characters like carriage returns, tabs, etc.
-    let cleaned = cleaned.replace("\r", ""); // Remove carriage returns
-    let cleaned = cleaned.replace("\t", "    "); // Convert tabs to spaces
-
-    // Return the cleaned output
-    cleaned.to_string()
-}
 
 // Constants for number of lines for each section
 const RECENT_BUFFERS_NUM_LINES: u16 = 8;
@@ -56,6 +42,17 @@ fn clean_utf8_content(content: &str) -> String {
         .chars()
         .filter(|&c| c.is_ascii_graphic() || c == '\n' || c == ' ')
         .collect()
+}
+
+fn remove_ansi_escape_codes(input: &str) -> String {
+    // Create a regex to match ANSI escape sequences
+    let re = Regex::new(r"\x1b\[([0-9]{1,2};[0-9]{1,2}|[0-9]{1,2})?m").unwrap();
+    let reclean = re.replace_all(input, "");
+    let reclean = reclean.replace("\r", ""); // Remove carriage returns
+    let reclean = reclean.replace("\t", "    "); // Convert tabs to spaces
+
+    // Return the cleaned output
+    reclean.to_string()
 }
 
 #[derive(Default)]
@@ -133,8 +130,8 @@ impl Vuit {
         let pty_system = UnixPtySystem::default();
         let pair = pty_system
             .openpty(PtySize {
-                rows: 80,
-                cols: 80,
+                rows: 20,
+                cols: 200,
                 pixel_width: 0,
                 pixel_height: 0,
             })
@@ -405,7 +402,7 @@ impl Vuit {
             // Define terminal paragraph
             self.term_out.clear();
             self.term_out = self.render_output();
-            let terminal_para = Paragraph::new(clean_terminal_output(&self.term_out))
+            let terminal_para = Paragraph::new(remove_ansi_escape_codes(&self.term_out))
                 .block(
                     Block::bordered()
                         .border_set(border::THICK)
