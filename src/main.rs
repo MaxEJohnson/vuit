@@ -2,7 +2,7 @@ use std::fs;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
@@ -10,6 +10,7 @@ use std::time::Duration;
 use ignore::WalkBuilder;
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use portable_pty::{unix::UnixPtySystem, CommandBuilder, PtySize, PtySystem};
 
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
@@ -25,7 +26,23 @@ use ratatui::{
 
 use clap::Command as ClapCommand;
 
+use regex::Regex;
 use serde::{Deserialize, Serialize};
+
+fn clean_terminal_output(output: &str) -> String {
+    // Regex to match ANSI escape sequences
+    let ansi_escape = Regex::new(r"\x1b\[[0-9;]*[A-Za-z]").unwrap();
+
+    // Remove ANSI escape sequences
+    let cleaned = ansi_escape.replace_all(output, "");
+
+    // Optionally, handle other unwanted characters like carriage returns, tabs, etc.
+    let cleaned = cleaned.replace("\r", ""); // Remove carriage returns
+    let cleaned = cleaned.replace("\t", "    "); // Convert tabs to spaces
+
+    // Return the cleaned output
+    cleaned.to_string()
+}
 
 // Constants for number of lines for each section
 const RECENT_BUFFERS_NUM_LINES: u16 = 8;
@@ -41,7 +58,7 @@ fn clean_utf8_content(content: &str) -> String {
         .collect()
 }
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct Vuit {
     // Config
     config: VuitRC,
@@ -55,13 +72,13 @@ pub struct Vuit {
     preview: Vec<String>,
     recent_files: Vec<String>,
     fd_list: Vec<String>,
-    term_out: Vec<String>,
+    term_out: String,
     help_menu: Vec<String>,
 
     // Terminal vars
-    bash_process: Option<std::process::Child>,
+    bash_process: Option<Box<dyn portable_pty::Child + Send + Sync>>,
     process_out: Arc<Mutex<Vec<String>>>,
-    command_sender: Arc<Mutex<Option<std::process::ChildStdin>>>,
+    command_sender: Arc<Mutex<Option<Box<dyn Write + Send>>>>,
 
     // State Variables
     switch_focus: bool,
@@ -113,20 +130,29 @@ impl Vuit {
     }
 
     fn start_term(&mut self) {
-        let mut child = Command::new("bash")
-            .arg("-c")
-            .arg("bash")
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .stdin(Stdio::piped())
-            .spawn()
-            .expect("Failed to start bash");
+        let pty_system = UnixPtySystem::default();
+        let pair = pty_system
+            .openpty(PtySize {
+                rows: 80,
+                cols: 80,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .expect("Failed to open PTY");
 
-        let stdout = child.stdout.take().expect("Failed to open stdout");
-        let reader = BufReader::new(stdout);
+        let mut cmd = CommandBuilder::new("bash");
+        cmd.arg("-c");
+        cmd.arg("bash");
+
+        // Set environment variables
+
+        let child = pair.slave.spawn_command(cmd).expect("Failed to spawn bash");
+
+        let reader = BufReader::new(pair.master.try_clone_reader().unwrap());
+        let writer = pair.master.take_writer().unwrap();
+
         let output = self.process_out.clone();
 
-        // Start a thread to read the output of bash
         thread::spawn(move || {
             for line in reader.lines() {
                 if let Ok(line_str) = line {
@@ -136,10 +162,8 @@ impl Vuit {
             }
         });
 
-        // Store bash process and stdin handle for later command writing
         self.bash_process = Some(child);
-        self.command_sender =
-            Arc::new(Mutex::new(self.bash_process.as_mut().unwrap().stdin.take()));
+        self.command_sender = Arc::new(Mutex::new(Some(Box::new(writer))));
     }
 
     fn restart_terminal_session(&mut self) {
@@ -157,10 +181,10 @@ impl Vuit {
 
     fn send_cmd_to_proc_term(&mut self) {
         // For safety, so that users do not accidentally crash vuit
-        let mut command = self.typed_input.trim_start_matches(';').to_string();
+        let command = self.typed_input.trim_start_matches(';').to_string();
         match command.as_str() {
             "vuit" => {
-                self.term_out = vec!["Nice Try".to_string()];
+                self.term_out = "Nice Try".to_string();
             }
             "exit" => {
                 self.restart_terminal_session();
@@ -173,8 +197,10 @@ impl Vuit {
             "restart" => {
                 self.restart_terminal_session();
             }
+            "clear" => {
+                self.restart_terminal_session();
+            }
             _ => {
-                command.push_str(" 2>&1");
                 if let Some(ref mut bash_stdin) = *self.command_sender.lock().unwrap() {
                     match writeln!(bash_stdin, "{}", command) {
                         _ => {}
@@ -184,18 +210,13 @@ impl Vuit {
         }
     }
 
-    fn render_output(&self) -> Vec<String> {
-        let mut display_lines = self.process_out.lock().unwrap().clone();
-
-        // Reverse the output to display correctly
-        display_lines.reverse();
-
-        display_lines
-            .iter()
-            .rev()
-            .take(20)
-            .map(|s| s.to_string())
-            .collect::<Vec<_>>()
+    fn render_output(&self) -> String {
+        // Fetch the output from PTY (this is simplified for the example)
+        let output_str = {
+            let output = self.process_out.lock().unwrap().clone();
+            output.join("\n") // Join the lines together
+        };
+        output_str
     }
 
     fn ui(&mut self, frame: &mut Frame) {
@@ -382,21 +403,15 @@ impl Vuit {
             frame.render_widget(help_para, search_terminal_chunks[0]);
         } else if self.toggle_terminal {
             // Define terminal paragraph
-            let current_out = self.render_output();
-            self.term_out = current_out;
-
-            let terminal_para = List::new(self.term_out.to_owned())
+            self.term_out.clear();
+            self.term_out = self.render_output();
+            let terminal_para = Paragraph::new(clean_terminal_output(&self.term_out))
                 .block(
                     Block::bordered()
                         .border_set(border::THICK)
                         .title(Line::from(" Terminal ").centered()),
                 )
-                .style(Style::default().fg(Color::White))
-                .highlight_style(
-                    Style::default()
-                        .fg(Color::White)
-                        .bg(grab_config_color(&self.config.highlight_color)),
-                );
+                .style(Style::default().fg(Color::White));
 
             frame.render_widget(terminal_para, search_terminal_chunks[0]);
         }
@@ -561,6 +576,11 @@ impl Vuit {
             } => {
                 self.toggle_terminal = !self.toggle_terminal;
             }
+            KeyEvent {
+                code: KeyCode::Char('c'),
+                modifiers: KeyModifiers::CONTROL,
+                ..
+            } => self.restart_terminal_session(),
             KeyEvent {
                 code: KeyCode::Char('h'),
                 modifiers: KeyModifiers::CONTROL,
