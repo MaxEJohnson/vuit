@@ -137,7 +137,7 @@ impl Vuit {
             })
             .expect("Failed to open PTY");
 
-        let mut cmd = CommandBuilder::new("bash");
+        let cmd = CommandBuilder::new("bash");
 
         // Set environment variables
 
