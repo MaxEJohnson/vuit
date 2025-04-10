@@ -26,6 +26,8 @@ TAB        - Switch between the "Files" window and the "Recent" window.
 
 &lt;C-t&gt;      - Toggle Terminal.
 
+&lt;C-f&gt;      - Toggle Ripgrep.
+
 &lt;C-h&gt;      - Toggle Help Menu.
 
 ESC        - Exit vuit.

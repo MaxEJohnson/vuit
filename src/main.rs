@@ -37,6 +37,33 @@ const SEARCH_BAR_NUM_LINES: u16 = 3;
 const PREVIEW_NUM_LINES: u16 = 50;
 const HELP_TEXT_BOX_NUM_LINES: u16 = 18;
 
+#[derive(PartialEq, Eq)]
+enum FOCUS {
+    RECENTFILES,
+    FILELIST,
+    FILESTRLIST,
+}
+
+impl Default for FOCUS {
+    fn default() -> Self {
+        FOCUS::FILELIST
+    }
+}
+
+// Needs to be workshopped, temporary for now
+const COLORS: &[&str] = &[
+    "lightblue",
+    "cyan",
+    "lightgreen",
+    "yellow",
+    "lightred",
+    "green",
+    "lightcyan",
+    "blue",
+    "lightyellow",
+    "red",
+];
+
 fn clean_utf8_content(content: &str) -> String {
     content
         .chars()
@@ -66,6 +93,7 @@ pub struct Vuit {
 
     // Lists to Display
     file_list: Vec<String>,
+    file_str_list: Vec<String>,
     preview: Vec<String>,
     recent_files: Vec<String>,
     fd_list: Vec<String>,
@@ -78,11 +106,13 @@ pub struct Vuit {
     command_sender: Arc<Mutex<Option<Box<dyn Write + Send>>>>,
 
     // State Variables
-    switch_focus: bool,
+    switch_focus: FOCUS,
     toggle_terminal: bool,
     toggle_help_menu: bool,
+    toggle_rg: bool,
     hltd_file: usize,
     file_list_state: ListState,
+    file_str_list_state: ListState,
     recent_state: ListState,
     help_menu_state: ListState,
 
@@ -93,15 +123,17 @@ pub struct Vuit {
 impl Vuit {
     fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
         // Initialize Focus to File List
-        self.switch_focus = true;
+        self.switch_focus = FOCUS::FILELIST;
         self.toggle_terminal = false;
         self.toggle_help_menu = false;
+        self.toggle_rg = false;
 
         // Populate fd list
         self.run_fd_cmd();
 
         // Populate File list and set it's highlight index
         self.file_list = self.run_search_cmd();
+        //self.file_str_list = self.run_search_str_cmd();
         self.file_list_state.select(Some(self.hltd_file));
 
         if self.hltd_file >= self.file_list.len() && !self.file_list.is_empty() {
@@ -224,6 +256,7 @@ impl Vuit {
 
         let preview_title = Line::from(" Preview ");
         let file_list_title = Line::from(" Files ");
+        let file_str_list_title = Line::from(" Strings ");
         let recent_files_title = Line::from(" Recent ");
 
         // Window Blocks
@@ -237,6 +270,10 @@ impl Vuit {
 
         let file_list_block = Block::bordered()
             .title(file_list_title.centered())
+            .border_set(border::THICK);
+
+        let file_str_list_block = Block::bordered()
+            .title(file_str_list_title.centered())
             .border_set(border::THICK);
 
         let recentfiles_block = Block::bordered()
@@ -259,6 +296,15 @@ impl Vuit {
                     .bg(grab_config_color(&self.config.highlight_color)),
             );
 
+        let file_str_list_list = List::new(self.file_str_list.to_owned())
+            .block(file_str_list_block)
+            .style(Style::default().fg(grab_config_color(&self.config.colorscheme)))
+            .highlight_style(
+                Style::default()
+                    .fg(Color::White)
+                    .bg(grab_config_color(&self.config.highlight_color)),
+            );
+
         let preview_list = List::new(self.preview.to_owned())
             .block(preview_block)
             .style(Style::default().fg(grab_config_color(&self.config.colorscheme)));
@@ -273,11 +319,12 @@ impl Vuit {
             );
 
         // Defining toggle terminal line lengths
-        let (search_lines, terminal_lines) = if self.toggle_terminal || self.toggle_help_menu {
-            (SEARCH_BAR_NUM_LINES, TERMINAL_NUM_LINES)
-        } else {
-            (SEARCH_BAR_NUM_LINES, 0)
-        };
+        let (search_lines, terminal_lines) =
+            if self.toggle_terminal || self.toggle_help_menu || self.toggle_rg {
+                (SEARCH_BAR_NUM_LINES, TERMINAL_NUM_LINES)
+            } else {
+                (SEARCH_BAR_NUM_LINES, 0)
+            };
 
         let content_lines = if frame
             .area()
@@ -319,17 +366,18 @@ impl Vuit {
             ])
             .split(top_chunks[0]);
 
-        let search_terminal_chunks = if self.toggle_terminal || self.toggle_help_menu {
-            Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Length(terminal_lines),
-                    Constraint::Length(search_lines),
-                ])
-                .split(chunks[1])
-        } else {
-            chunks
-        };
+        let search_terminal_chunks =
+            if self.toggle_terminal || self.toggle_help_menu || self.toggle_rg {
+                Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints([
+                        Constraint::Length(terminal_lines),
+                        Constraint::Length(search_lines),
+                    ])
+                    .split(chunks[1])
+            } else {
+                chunks
+            };
 
         let help_text_box = List::new(vec![" Help -> <C-h>"])
             .block(Block::bordered().border_set(border::THICK))
@@ -409,6 +457,12 @@ impl Vuit {
                 .style(Style::default().fg(Color::White));
 
             frame.render_widget(terminal_para, search_terminal_chunks[0]);
+        } else if self.toggle_rg {
+            frame.render_stateful_widget(
+                file_str_list_list,
+                search_terminal_chunks[0],
+                &mut self.file_str_list_state,
+            );
         }
     }
 
@@ -418,6 +472,8 @@ impl Vuit {
                 Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
                     if self.toggle_terminal {
                         self.handle_key_event_terminal_emu(key_event, terminal);
+                    } else if self.toggle_rg {
+                        self.handle_key_event_rg(key_event, terminal);
                     } else {
                         self.handle_key_event(key_event, terminal);
                     }
@@ -467,15 +523,36 @@ impl Vuit {
 
         matches_c.iter().map(|s| s.to_string()).collect()
     }
+    fn run_search_str_cmd(&mut self) -> Vec<String> {
+        let output = Command::new("rg")
+            //      .arg("--no-heading")
+            .arg("--with-filename")
+            .arg("--line-number")
+            .arg("--max-count")
+            .arg("1")
+            .arg("--no-messages")
+            //     .arg("--color")
+            //     .arg("never")
+            .arg(self.typed_input.clone())
+            .arg(".")
+            .output()
+            .expect("failed to run rg... please install ripgrep");
+
+        String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .map(str::to_owned)
+            .map(|line| clean_utf8_content(&line))
+            .collect()
+    }
 
     fn run_preview_cmd(&mut self) -> Vec<String> {
-        let file_list = if self.switch_focus {
-            &self.file_list
-        } else {
-            &self.recent_files
+        let file_list = match self.switch_focus {
+            FOCUS::RECENTFILES => &self.recent_files,
+            FOCUS::FILELIST => &self.file_list,
+            FOCUS::FILESTRLIST => &self.file_str_list,
         };
 
-        if file_list.is_empty() {
+        if file_list.is_empty() || self.switch_focus == FOCUS::FILESTRLIST {
             return vec![];
         }
 
@@ -491,13 +568,18 @@ impl Vuit {
 
         match File::open(file_path) {
             Ok(file) => {
-                let reader = BufReader::new(file);
-                reader
-                    .lines()
-                    .take(num_lines)
-                    .filter_map(Result::ok)
-                    .map(|line| clean_utf8_content(&line))
-                    .collect::<Vec<String>>()
+                if self.switch_focus == FOCUS::FILESTRLIST {
+                    vec![]
+                } else {
+                    // If in recent files mode, show the first few lines of the file
+                    let reader = BufReader::new(file);
+                    return reader
+                        .lines()
+                        .take(num_lines)
+                        .filter_map(Result::ok)
+                        .map(|line| clean_utf8_content(&line))
+                        .collect::<Vec<String>>();
+                }
             }
             Err(_) => vec!["No Preview Available".to_string()],
         }
@@ -510,6 +592,267 @@ impl Vuit {
             COLORS[(self.colorscheme_index + 1) % COLORS.len()].to_string();
 
         let _ = terminal.draw(|frame| self.ui(frame));
+    }
+
+    fn handle_key_event_rg(&mut self, key_event: KeyEvent, terminal: &mut DefaultTerminal) {
+        match key_event {
+            KeyEvent {
+                code: KeyCode::Char(c),
+                modifiers: KeyModifiers::NONE | KeyModifiers::SHIFT,
+                ..
+            } => {
+                self.typed_input.push(c);
+            }
+            KeyEvent {
+                code: KeyCode::Backspace,
+                ..
+            } => {
+                if self.typed_input.is_empty() {
+                    return;
+                }
+
+                self.typed_input.pop();
+            }
+            KeyEvent {
+                code: KeyCode::Enter,
+                ..
+            } => {
+                if self.switch_focus == FOCUS::FILESTRLIST
+                    && self.file_str_list_state.selected().is_some()
+                {
+                    if !self
+                        .recent_files
+                        .contains(&self.file_str_list[self.hltd_file])
+                    {
+                        let file_path = &self.file_str_list[self.hltd_file]
+                            .split_once(':')
+                            .map(|(before, _)| before)
+                            .unwrap_or(self.file_str_list[self.hltd_file].as_str());
+                        self.recent_files.push(file_path.to_string());
+                    }
+
+                    if self.recent_files.len() > 5 {
+                        self.recent_files.remove(0);
+                    }
+
+                    let file_path = &self.file_str_list[self.hltd_file]
+                        .split_once(':')
+                        .map(|(before, _)| before)
+                        .unwrap_or(self.file_str_list[self.hltd_file].as_str());
+                    let _ = Command::new(&self.config.editor)
+                        .arg(file_path)
+                        .status()
+                        .expect("Failed to start selected editor");
+
+                    self.file_str_list_state.select(None);
+                    // Clear terminal on exit from editor
+                    let _ = terminal.clear();
+                    let _ = terminal.draw(|frame| self.ui(frame));
+                } else {
+                    self.file_str_list = self.run_search_str_cmd();
+                }
+            }
+            KeyEvent {
+                code: KeyCode::Esc, ..
+            } => {
+                // Exit when Esc is pressed
+                self.exit = true;
+            }
+            KeyEvent {
+                code: KeyCode::Char('j'),
+                modifiers: KeyModifiers::CONTROL,
+                ..
+            }
+            | KeyEvent {
+                code: KeyCode::Down,
+                ..
+            } => {
+                // Navigate file list down
+                match self.switch_focus {
+                    FOCUS::RECENTFILES => {
+                        if self.recent_files.is_empty() {
+                            return;
+                        }
+                    }
+                    FOCUS::FILELIST => {
+                        if self.file_list.is_empty() {
+                            return;
+                        }
+                    }
+                    FOCUS::FILESTRLIST => {
+                        if self.file_str_list.is_empty() {
+                            return;
+                        }
+                    }
+                }
+
+                self.hltd_file += 1;
+
+                match self.switch_focus {
+                    FOCUS::RECENTFILES => {
+                        if self.hltd_file >= self.recent_files.len()
+                            && !self.recent_files.is_empty()
+                        {
+                            self.hltd_file = self.recent_files.len() - 1;
+                        }
+                        self.recent_state.select(Some(self.hltd_file));
+                    }
+                    FOCUS::FILELIST => {
+                        if self.hltd_file >= self.file_list.len() && !self.file_list.is_empty() {
+                            self.hltd_file = self.file_list.len() - 1;
+                        }
+                        self.file_list_state.select(Some(self.hltd_file));
+                    }
+                    FOCUS::FILESTRLIST => {
+                        if self.hltd_file >= self.file_str_list.len()
+                            && !self.file_str_list.is_empty()
+                        {
+                            self.hltd_file = self.file_str_list.len() - 1;
+                        }
+                        self.file_str_list_state.select(Some(self.hltd_file));
+                    }
+                }
+                self.preview = self.run_preview_cmd();
+            }
+            KeyEvent {
+                code: KeyCode::Char('k') | KeyCode::Up,
+                modifiers: KeyModifiers::CONTROL,
+                ..
+            }
+            | KeyEvent {
+                code: KeyCode::Up, ..
+            } => {
+                // Navigate file list up
+                match self.switch_focus {
+                    FOCUS::RECENTFILES => {
+                        if self.recent_files.is_empty() {
+                            return;
+                        }
+                    }
+                    FOCUS::FILELIST => {
+                        if self.file_list.is_empty() {
+                            return;
+                        }
+                    }
+                    FOCUS::FILESTRLIST => {
+                        if self.file_str_list.is_empty() {
+                            return;
+                        }
+                    }
+                }
+
+                if self.hltd_file == 0 {
+                    return;
+                }
+
+                self.hltd_file -= 1;
+                match self.switch_focus {
+                    FOCUS::RECENTFILES => {
+                        self.recent_state.select(Some(self.hltd_file));
+                    }
+                    FOCUS::FILELIST => {
+                        self.file_list_state.select(Some(self.hltd_file));
+                    }
+                    FOCUS::FILESTRLIST => {
+                        self.file_str_list_state.select(Some(self.hltd_file));
+                    }
+                }
+                self.preview = self.run_preview_cmd();
+            }
+            KeyEvent {
+                code: KeyCode::Tab, ..
+            } => {
+                // Switch between recent and search files
+                match self.switch_focus {
+                    FOCUS::RECENTFILES => {
+                        if !self.file_str_list.is_empty() {
+                            self.switch_focus = FOCUS::FILESTRLIST;
+                        }
+                        if !self.file_list.is_empty() {
+                            self.switch_focus = FOCUS::FILELIST;
+                        }
+                    }
+                    FOCUS::FILELIST => {
+                        if !self.recent_files.is_empty() {
+                            self.switch_focus = FOCUS::RECENTFILES;
+                        }
+
+                        if !self.file_str_list.is_empty() {
+                            self.switch_focus = FOCUS::FILESTRLIST;
+                        }
+                    }
+                    FOCUS::FILESTRLIST => {
+                        if !self.file_list.is_empty() {
+                            self.switch_focus = FOCUS::FILELIST;
+                        }
+                        if !self.recent_files.is_empty() {
+                            self.switch_focus = FOCUS::RECENTFILES;
+                        }
+                    }
+                }
+
+                match self.switch_focus {
+                    FOCUS::RECENTFILES => {
+                        self.file_list_state.select(None);
+                        self.file_str_list_state.select(None);
+                        self.hltd_file = 0;
+                        self.recent_state.select(Some(self.hltd_file));
+                        if self.recent_files.is_empty() {
+                            return;
+                        }
+                    }
+                    FOCUS::FILELIST => {
+                        self.file_str_list_state.select(None);
+                        self.recent_state.select(None);
+                        self.hltd_file = 0;
+                        self.file_list_state.select(Some(self.hltd_file));
+                        if self.file_list.is_empty() {
+                            return;
+                        }
+                    }
+                    FOCUS::FILESTRLIST => {
+                        self.file_list_state.select(None);
+                        self.recent_state.select(None);
+                        self.hltd_file = 0;
+                        self.file_str_list_state.select(Some(self.hltd_file));
+                        if self.file_str_list.is_empty() {
+                            return;
+                        }
+                    }
+                }
+                self.preview = self.run_preview_cmd();
+            }
+            KeyEvent {
+                code: KeyCode::Char('r'),
+                modifiers: KeyModifiers::CONTROL,
+                ..
+            } => {
+                // Refresh list of available files (e.g. after adding a new file, etc, ...)
+                self.run_fd_cmd();
+            }
+            KeyEvent {
+                code: KeyCode::Char('n'),
+                modifiers: KeyModifiers::CONTROL,
+                ..
+            } => {
+                self.next_colorscheme(terminal);
+            }
+            KeyEvent {
+                code: KeyCode::Char('f'),
+                modifiers: KeyModifiers::CONTROL,
+                ..
+            } => {
+                self.toggle_rg = !self.toggle_rg;
+            }
+            KeyEvent {
+                code: KeyCode::Char('h'),
+                modifiers: KeyModifiers::CONTROL,
+                ..
+            } => {
+                self.toggle_help_menu = !self.toggle_help_menu;
+            }
+            _ => {}
+        };
     }
 
     fn handle_key_event_terminal_emu(
@@ -546,7 +889,7 @@ impl Vuit {
             KeyEvent {
                 code: KeyCode::Esc, ..
             } => {
-                // Exit when Esc is pressed
+                // exit when esc is pressed
                 self.exit = true;
             }
             KeyEvent {
@@ -605,29 +948,47 @@ impl Vuit {
 
                 self.typed_input.push(c);
                 self.file_list = self.run_search_cmd();
+                //self.file_str_list = self.run_search_str_cmd();
 
-                if self.file_list.is_empty() {
-                    return;
-                }
+                //                if self.file_list.is_empty() {
+                //                    return;
+                //                }
+                //
+                //                if self.file_str_list.is_empty() {
+                //                    return;
+                //                }
 
-                if self.switch_focus {
-                    self.file_list_state.select(Some(self.hltd_file));
-                    if self.hltd_file >= self.file_list.len() && !self.file_list.is_empty() {
-                        self.hltd_file = self.file_list.len() - 1;
+                match self.switch_focus {
+                    FOCUS::RECENTFILES => {
+                        self.recent_state.select(Some(self.hltd_file));
+                        if self.hltd_file >= self.recent_files.len()
+                            && !self.recent_files.is_empty()
+                        {
+                            self.hltd_file = self.recent_files.len() - 1;
+                        }
                     }
-                    self.preview = self.run_preview_cmd();
-                } else {
-                    self.recent_state.select(Some(self.hltd_file));
-                    if self.hltd_file >= self.recent_files.len() && !self.recent_files.is_empty() {
-                        self.hltd_file = self.recent_files.len() - 1;
+                    FOCUS::FILELIST => {
+                        self.file_list_state.select(Some(self.hltd_file));
+                        if self.hltd_file >= self.file_list.len() && !self.file_list.is_empty() {
+                            self.hltd_file = self.file_list.len() - 1;
+                        }
+                    }
+                    FOCUS::FILESTRLIST => {
+                        self.file_str_list_state.select(Some(self.hltd_file));
+                        if self.hltd_file >= self.file_str_list.len()
+                            && !self.file_str_list.is_empty()
+                        {
+                            self.hltd_file = self.file_str_list.len() - 1;
+                        }
                     }
                 }
+                self.preview = self.run_preview_cmd();
             }
             KeyEvent {
                 code: KeyCode::Backspace,
                 ..
             } => {
-                // FZF search after each backspace
+                // FZF search after each Backspace
 
                 if self.typed_input.is_empty() {
                     return;
@@ -635,58 +996,105 @@ impl Vuit {
 
                 self.typed_input.pop();
                 self.file_list = self.run_search_cmd();
+                //self.file_str_list = self.run_search_str_cmd();
 
-                if self.file_list.is_empty() {
-                    return;
-                }
+                //                if self.file_list.is_empty() {
+                //                    return;
+                //                }
+                //
+                //                if self.file_str_list.is_empty() {
+                //                    return;
+                //                }
 
-                if self.switch_focus {
-                    self.file_list_state.select(Some(self.hltd_file));
-                    if self.hltd_file >= self.file_list.len() && !self.file_list.is_empty() {
-                        self.hltd_file = self.file_list.len() - 1;
+                match self.switch_focus {
+                    FOCUS::RECENTFILES => {
+                        self.recent_state.select(Some(self.hltd_file));
+                        if self.hltd_file >= self.recent_files.len()
+                            && !self.recent_files.is_empty()
+                        {
+                            self.hltd_file = self.recent_files.len() - 1;
+                        }
                     }
-                    self.preview = self.run_preview_cmd();
-                } else {
-                    self.recent_state.select(Some(self.hltd_file));
-                    if self.hltd_file >= self.recent_files.len() && !self.recent_files.is_empty() {
-                        self.hltd_file = self.recent_files.len() - 1;
+                    FOCUS::FILELIST => {
+                        self.file_list_state.select(Some(self.hltd_file));
+                        if self.hltd_file >= self.file_list.len() && !self.file_list.is_empty() {
+                            self.hltd_file = self.file_list.len() - 1;
+                        }
+                    }
+                    FOCUS::FILESTRLIST => {
+                        self.file_str_list_state.select(Some(self.hltd_file));
+                        if self.hltd_file >= self.file_str_list.len()
+                            && !self.file_str_list.is_empty()
+                        {
+                            self.hltd_file = self.file_str_list.len() - 1;
+                        }
                     }
                 }
+                self.preview = self.run_preview_cmd();
             }
             KeyEvent {
                 code: KeyCode::Enter,
+                modifiers: KeyModifiers::NONE,
                 ..
             } => {
-                // Start editor on highlighted file when Enter is pressed
-                if self.file_list.is_empty() {
-                    return;
-                }
-
-                if self.switch_focus && !self.recent_files.contains(&self.file_list[self.hltd_file])
+                if self.switch_focus == FOCUS::FILELIST
+                    && !self.recent_files.contains(&self.file_list[self.hltd_file])
                 {
                     self.recent_files
                         .push(self.file_list[self.hltd_file].to_owned());
+                }
+
+                if self.switch_focus == FOCUS::FILESTRLIST
+                    && !self
+                        .recent_files
+                        .contains(&self.file_str_list[self.hltd_file])
+                {
+                    let file_path = &self.file_str_list[self.hltd_file]
+                        .split_once(':')
+                        .map(|(before, _)| before)
+                        .unwrap_or(self.file_str_list[self.hltd_file].as_str());
+                    self.recent_files.push(file_path.to_string());
                 }
 
                 if self.recent_files.len() > 5 {
                     self.recent_files.remove(0);
                 }
 
-                if self.switch_focus {
-                    let _ = Command::new(&self.config.editor)
-                        .arg(&self.file_list[self.hltd_file])
-                        .status()
-                        .expect("Failed to start selected editor");
-                } else {
-                    let _ = Command::new(&self.config.editor)
-                        .arg(&self.recent_files[self.hltd_file])
-                        .status()
-                        .expect("Failed to start selected editor");
+                match self.switch_focus {
+                    FOCUS::RECENTFILES => {
+                        let _ = Command::new(&self.config.editor)
+                            .arg(&self.recent_files[self.hltd_file])
+                            .status()
+                            .expect("Failed to start selected editor");
+                    }
+                    FOCUS::FILELIST => {
+                        let _ = Command::new(&self.config.editor)
+                            .arg(&self.file_list[self.hltd_file])
+                            .status()
+                            .expect("Failed to start selected editor");
+                    }
+                    FOCUS::FILESTRLIST => {
+                        let file_path = &self.file_str_list[self.hltd_file]
+                            .split_once(':')
+                            .map(|(before, _)| before)
+                            .unwrap_or(self.file_str_list[self.hltd_file].as_str());
+                        let _ = Command::new(&self.config.editor)
+                            .arg(file_path)
+                            .status()
+                            .expect("Failed to start selected editor");
+                    }
                 }
 
                 // Clear terminal on exit from editor
                 let _ = terminal.clear();
                 let _ = terminal.draw(|frame| self.ui(frame));
+            }
+            KeyEvent {
+                code: KeyCode::Char('f'),
+                modifiers: KeyModifiers::CONTROL,
+                ..
+            } => {
+                self.toggle_rg = !self.toggle_rg;
             }
             KeyEvent {
                 code: KeyCode::Esc, ..
@@ -704,29 +1112,51 @@ impl Vuit {
                 ..
             } => {
                 // Navigate file list down
-                if self.switch_focus {
-                    if self.file_list.is_empty() {
-                        return;
+                match self.switch_focus {
+                    FOCUS::RECENTFILES => {
+                        if self.recent_files.is_empty() {
+                            return;
+                        }
                     }
-                } else if self.recent_files.is_empty() {
-                    return;
+                    FOCUS::FILELIST => {
+                        if self.file_list.is_empty() {
+                            return;
+                        }
+                    }
+                    FOCUS::FILESTRLIST => {
+                        if self.file_str_list.is_empty() {
+                            return;
+                        }
+                    }
                 }
 
                 self.hltd_file += 1;
 
-                if self.switch_focus {
-                    if self.hltd_file >= self.file_list.len() && !self.file_list.is_empty() {
-                        self.hltd_file = self.file_list.len() - 1;
+                match self.switch_focus {
+                    FOCUS::RECENTFILES => {
+                        if self.hltd_file >= self.recent_files.len()
+                            && !self.recent_files.is_empty()
+                        {
+                            self.hltd_file = self.recent_files.len() - 1;
+                        }
+                        self.recent_state.select(Some(self.hltd_file));
                     }
-                    self.file_list_state.select(Some(self.hltd_file));
-                    self.preview = self.run_preview_cmd();
-                } else {
-                    if self.hltd_file >= self.recent_files.len() && !self.recent_files.is_empty() {
-                        self.hltd_file = self.recent_files.len() - 1;
+                    FOCUS::FILELIST => {
+                        if self.hltd_file >= self.file_list.len() && !self.file_list.is_empty() {
+                            self.hltd_file = self.file_list.len() - 1;
+                        }
+                        self.file_list_state.select(Some(self.hltd_file));
                     }
-                    self.recent_state.select(Some(self.hltd_file));
-                    self.preview = self.run_preview_cmd();
+                    FOCUS::FILESTRLIST => {
+                        if self.hltd_file >= self.file_str_list.len()
+                            && !self.file_str_list.is_empty()
+                        {
+                            self.hltd_file = self.file_str_list.len() - 1;
+                        }
+                        self.file_str_list_state.select(Some(self.hltd_file));
+                    }
                 }
+                self.preview = self.run_preview_cmd();
             }
             KeyEvent {
                 code: KeyCode::Char('k') | KeyCode::Up,
@@ -737,12 +1167,22 @@ impl Vuit {
                 code: KeyCode::Up, ..
             } => {
                 // Navigate file list up
-                if self.switch_focus {
-                    if self.file_list.is_empty() {
-                        return;
+                match self.switch_focus {
+                    FOCUS::RECENTFILES => {
+                        if self.recent_files.is_empty() {
+                            return;
+                        }
                     }
-                } else if self.recent_files.is_empty() {
-                    return;
+                    FOCUS::FILELIST => {
+                        if self.file_list.is_empty() {
+                            return;
+                        }
+                    }
+                    FOCUS::FILESTRLIST => {
+                        if self.file_str_list.is_empty() {
+                            return;
+                        }
+                    }
                 }
 
                 if self.hltd_file == 0 {
@@ -750,48 +1190,81 @@ impl Vuit {
                 }
 
                 self.hltd_file -= 1;
-
-                if self.switch_focus {
-                    if self.hltd_file >= self.file_list.len() && !self.file_list.is_empty() {
-                        self.hltd_file = self.file_list.len() - 1;
+                match self.switch_focus {
+                    FOCUS::RECENTFILES => {
+                        self.recent_state.select(Some(self.hltd_file));
                     }
-                    self.file_list_state.select(Some(self.hltd_file));
-                    self.preview = self.run_preview_cmd();
-                } else {
-                    if self.hltd_file >= self.recent_files.len() && !self.recent_files.is_empty() {
-                        self.hltd_file = self.recent_files.len() - 1;
+                    FOCUS::FILELIST => {
+                        self.file_list_state.select(Some(self.hltd_file));
                     }
-                    self.recent_state.select(Some(self.hltd_file));
-                    self.preview = self.run_preview_cmd();
+                    FOCUS::FILESTRLIST => {
+                        self.file_str_list_state.select(Some(self.hltd_file));
+                    }
                 }
+                self.preview = self.run_preview_cmd();
             }
             KeyEvent {
                 code: KeyCode::Tab, ..
             } => {
                 // Switch between recent and search files
-                if self.recent_files.is_empty() {
-                    return;
+                match self.switch_focus {
+                    FOCUS::RECENTFILES => {
+                        if !self.file_str_list.is_empty() {
+                            self.switch_focus = FOCUS::FILESTRLIST;
+                        }
+                        if !self.file_list.is_empty() {
+                            self.switch_focus = FOCUS::FILELIST;
+                        }
+                    }
+                    FOCUS::FILELIST => {
+                        if !self.recent_files.is_empty() {
+                            self.switch_focus = FOCUS::RECENTFILES;
+                        }
+
+                        if !self.file_str_list.is_empty() {
+                            self.switch_focus = FOCUS::FILESTRLIST;
+                        }
+                    }
+                    FOCUS::FILESTRLIST => {
+                        if !self.file_list.is_empty() {
+                            self.switch_focus = FOCUS::FILELIST;
+                        }
+                        if !self.recent_files.is_empty() {
+                            self.switch_focus = FOCUS::RECENTFILES;
+                        }
+                    }
                 }
 
-                self.switch_focus = !self.switch_focus;
-
-                if self.switch_focus {
-                    self.recent_state.select(None);
-                    self.hltd_file = 0;
-                    self.file_list_state.select(Some(self.hltd_file));
-                    if self.file_list.is_empty() {
-                        return;
+                match self.switch_focus {
+                    FOCUS::RECENTFILES => {
+                        self.file_list_state.select(None);
+                        self.file_str_list_state.select(None);
+                        self.hltd_file = 0;
+                        self.recent_state.select(Some(self.hltd_file));
+                        if self.recent_files.is_empty() {
+                            return;
+                        }
                     }
-                    self.preview = self.run_preview_cmd();
-                } else {
-                    self.file_list_state.select(None);
-                    self.hltd_file = 0;
-                    self.recent_state.select(Some(self.hltd_file));
-                    if self.recent_files.is_empty() {
-                        return;
+                    FOCUS::FILELIST => {
+                        self.file_str_list_state.select(None);
+                        self.recent_state.select(None);
+                        self.hltd_file = 0;
+                        self.file_list_state.select(Some(self.hltd_file));
+                        if self.file_list.is_empty() {
+                            return;
+                        }
                     }
-                    self.preview = self.run_preview_cmd();
+                    FOCUS::FILESTRLIST => {
+                        self.file_list_state.select(None);
+                        self.recent_state.select(None);
+                        self.hltd_file = 0;
+                        self.file_str_list_state.select(Some(self.hltd_file));
+                        if self.file_str_list.is_empty() {
+                            return;
+                        }
+                    }
                 }
+                self.preview = self.run_preview_cmd();
             }
             KeyEvent {
                 code: KeyCode::Char('r'),
@@ -870,20 +1343,6 @@ fn expand_tilde(path: &str) -> PathBuf {
     }
     PathBuf::from(path)
 }
-
-// Needs to be workshopped, temporary for now
-const COLORS: &[&str] = &[
-    "lightblue",
-    "cyan",
-    "lightgreen",
-    "yellow",
-    "lightred",
-    "green",
-    "lightcyan",
-    "blue",
-    "lightyellow",
-    "red",
-];
 
 fn main() -> io::Result<()> {
     // Versioning
