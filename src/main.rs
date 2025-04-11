@@ -484,6 +484,7 @@ impl Vuit {
             let filecount_text = format!(" [ {} / {} ] ", filecount, self.fd_list.len());
             let filecount_para = Paragraph::new(filecount_text)
                 .block(filecount_block)
+                .alignment(ratatui::layout::Alignment::Center)
                 .style(Style::default().fg(grab_config_color(&self.config.colorscheme)));
 
             let small_chunks = Layout::default()
@@ -496,8 +497,8 @@ impl Vuit {
             let small_right_chunks = Layout::default()
                 .direction(Direction::Horizontal)
                 .constraints([
-                    Constraint::Length(left_chunks[1].width - 15),
-                    Constraint::Length(13),
+                    Constraint::Length(left_chunks[1].width - 24),
+                    Constraint::Length(21),
                 ])
                 .split(small_chunks[1]);
             frame.render_widget(filecount_para, small_right_chunks[1]);
