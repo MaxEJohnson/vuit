@@ -114,7 +114,7 @@ pub struct Vuit {
     switch_focus: FOCUS,
     toggle_terminal: bool,
     toggle_help_menu: bool,
-    toggle_rg: bool,
+    toggle_ss: bool,
     hltd_file: usize,
     file_list_state: ListState,
     file_str_list_state: ListState,
@@ -131,7 +131,7 @@ impl Vuit {
         self.switch_focus = FOCUS::FILELIST;
         self.toggle_terminal = false;
         self.toggle_help_menu = false;
-        self.toggle_rg = false;
+        self.toggle_ss = false;
 
         // Populate fd list
         self.run_fd_cmd();
@@ -267,7 +267,7 @@ impl Vuit {
             self.render_help_menu(frame, &search_terminal_chunks);
         } else if self.toggle_terminal {
             self.render_terminal_output(frame, &search_terminal_chunks);
-        } else if self.toggle_rg {
+        } else if self.toggle_ss {
             self.render_file_string_list(frame, &search_terminal_chunks);
         } else {
             self.render_file_count_display(frame, &left_chunks);
@@ -276,7 +276,7 @@ impl Vuit {
 
     fn make_main_layout(&self, frame: &Frame) -> (Vec<Rect>, u16) {
         let (search_lines, terminal_lines) =
-            if self.toggle_terminal || self.toggle_help_menu || self.toggle_rg {
+            if self.toggle_terminal || self.toggle_help_menu || self.toggle_ss {
                 (SEARCH_BAR_NUM_LINES, TERMINAL_NUM_LINES)
             } else {
                 (SEARCH_BAR_NUM_LINES, 0)
@@ -322,7 +322,7 @@ impl Vuit {
     }
 
     fn make_search_terminal_chunks(&self, chunks: &[Rect]) -> Vec<Rect> {
-        if self.toggle_terminal || self.toggle_help_menu || self.toggle_rg {
+        if self.toggle_terminal || self.toggle_help_menu || self.toggle_ss {
             Layout::default()
                 .direction(Direction::Vertical)
                 .constraints([
@@ -391,7 +391,7 @@ impl Vuit {
     }
 
     fn render_search_input(&self, f: &mut Frame, chunks: &[Rect]) {
-        let filter = if self.toggle_rg {
+        let filter = if self.toggle_ss {
             let flt = if self.current_filter.is_empty() {
                 "null".to_owned()
             } else {
@@ -518,7 +518,7 @@ impl Vuit {
                 Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
                     if self.toggle_terminal {
                         self.handle_key_event_terminal_emu(key_event, terminal);
-                    } else if self.toggle_rg {
+                    } else if self.toggle_ss {
                         self.handle_key_event_rg(key_event, terminal);
                     } else {
                         self.handle_key_event(key_event, terminal);
@@ -690,7 +690,24 @@ impl Vuit {
                         .split_once(':')
                         .map(|(before, _)| before)
                         .unwrap_or(self.file_str_list[self.hltd_file].as_str());
+
+                    let linearg = if self.config.editor == "vim" {
+                        let linenumnstr = self.file_str_list[self.hltd_file]
+                            .split_once(':')
+                            .map(|(_, after)| after)
+                            .unwrap_or(self.file_str_list[self.hltd_file].as_str());
+                        let linenum = linenumnstr
+                            .split_once(':')
+                            .map(|(before, _)| before)
+                            .unwrap_or(linenumnstr);
+
+                        format!("+{}", linenum)
+                    } else {
+                        String::new()
+                    };
+
                     let _ = Command::new(&self.config.editor)
+                        .arg(linearg)
                         .arg(file_path)
                         .status()
                         .expect("Failed to start selected editor");
@@ -895,7 +912,7 @@ impl Vuit {
             } => {
                 self.typed_input.clear();
                 self.file_str_list.clear();
-                self.toggle_rg = !self.toggle_rg;
+                self.toggle_ss = !self.toggle_ss;
                 self.file_list = self.run_search_cmd();
             }
             KeyEvent {
@@ -1132,7 +1149,7 @@ impl Vuit {
             } => {
                 self.current_filter = self.typed_input.clone();
                 self.typed_input.clear();
-                self.toggle_rg = !self.toggle_rg;
+                self.toggle_ss = !self.toggle_ss;
             }
             KeyEvent {
                 code: KeyCode::Esc, ..
