@@ -4,18 +4,8 @@
 
 GREEN='\033[0;32m'
 NC='\033[0m'
-MAC_VERSION=0.6.4
-LINUX_VERSION=0.6.4
-
-if [[ $OSTYPE == darwin* ]]; then
-    echo -e "${GREEN}Installing dependencies...${NC}"
-    if [ $(which rg) ]; then
-        echo -e "${GREEN}ripgrep already installed${NC}"
-    else
-        echo -e "${GREEN}Installing ripgrep...${NC}"
-        brew install ripgrep 
-    fi
-fi
+MAC_VERSION=0.6.5
+LINUX_VERSION=0.6.5
 
 echo -e "${NC}Installing vuit${NC}"
 if [[ $OSTYPE == linux-* ]]; then

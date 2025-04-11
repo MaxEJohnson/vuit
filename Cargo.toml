@@ -1,6 +1,6 @@
 [package]
 name = "vuit"
-version = "0.6.4"
+version = "0.6.5"
 authors = ["Maxwell Johnson <mjohnsmax@gmail.com>"]
 edition = "2024"
 description = "A Buffer Manager for Vim."
@@ -23,7 +23,7 @@ serde_json = "1.0.140"
 
 [package.metadata.deb]
 maintainer = "Maxwell Johnson <mjohnsmax@gmail.com>"
-depends = "vim ripgrep"
+depends = "vim"
 section = "utils"
 priority = "optional"
 revision = "0"

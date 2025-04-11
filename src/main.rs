@@ -1,6 +1,7 @@
 use std::fs;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
+use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
@@ -99,6 +100,7 @@ pub struct Vuit {
     fd_list: Vec<String>,
     term_out: String,
     help_menu: Vec<String>,
+    current_filter: String,
 
     // Terminal vars
     bash_process: Option<Box<dyn portable_pty::Child + Send + Sync>>,
@@ -133,7 +135,6 @@ impl Vuit {
 
         // Populate File list and set it's highlight index
         self.file_list = self.run_search_cmd();
-        //self.file_str_list = self.run_search_str_cmd();
         self.file_list_state.select(Some(self.hltd_file));
 
         if self.hltd_file >= self.file_list.len() && !self.file_list.is_empty() {
@@ -280,8 +281,23 @@ impl Vuit {
             .title(recent_files_title.centered())
             .border_set(border::THICK);
 
+        let filecount_block = Block::bordered().border_set(border::THICK);
+
         // Text/Paragraphs to Display
-        let input = Text::from("> ".to_owned() + &self.typed_input);
+
+        let input = match self.toggle_rg {
+            true => {
+                let filter = if self.current_filter.is_empty() {
+                    "null".to_owned()
+                } else {
+                    "\"".to_owned() + &self.current_filter + &"\""
+                };
+                Text::from(
+                    " [FILE FILTER: ".to_owned() + &filter + &"]" + &" > " + &self.typed_input,
+                )
+            }
+            false => Text::from(" > ".to_owned() + &self.typed_input),
+        };
 
         let search_para = Paragraph::new(input)
             .block(search_block)
@@ -463,6 +479,28 @@ impl Vuit {
                 search_terminal_chunks[0],
                 &mut self.file_str_list_state,
             );
+        } else {
+            let filecount = self.file_list.len();
+            let filecount_text = format!(" [ {} / {} ] ", filecount, self.fd_list.len());
+            let filecount_para = Paragraph::new(filecount_text)
+                .block(filecount_block)
+                .style(Style::default().fg(grab_config_color(&self.config.colorscheme)));
+
+            let small_chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Length(top_chunks_left_length - 4),
+                    Constraint::Length(3),
+                ])
+                .split(left_chunks[1]);
+            let small_right_chunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([
+                    Constraint::Length(left_chunks[1].width - 15),
+                    Constraint::Length(13),
+                ])
+                .split(small_chunks[1]);
+            frame.render_widget(filecount_para, small_right_chunks[1]);
         }
     }
 
@@ -523,26 +561,32 @@ impl Vuit {
 
         matches_c.iter().map(|s| s.to_string()).collect()
     }
-    fn run_search_str_cmd(&mut self) -> Vec<String> {
-        let output = Command::new("rg")
-            //      .arg("--no-heading")
-            .arg("--with-filename")
-            .arg("--line-number")
-            .arg("--max-count")
-            .arg("1")
-            .arg("--no-messages")
-            //     .arg("--color")
-            //     .arg("never")
-            .arg(self.typed_input.clone())
-            .arg(".")
-            .output()
-            .expect("failed to run rg... please install ripgrep");
 
-        String::from_utf8_lossy(&output.stdout)
-            .lines()
-            .map(str::to_owned)
-            .map(|line| clean_utf8_content(&line))
-            .collect()
+    fn search_filelist_str(&mut self) -> Vec<String> {
+        let search_lower = self.typed_input.to_lowercase();
+        let mut matches = Vec::new();
+
+        for path_str in self.file_list.iter() {
+            let path = Path::new(&path_str);
+            if let Ok(file) = File::open(path) {
+                let reader = BufReader::new(file);
+                for (line_number, line) in reader.lines().enumerate() {
+                    if let Ok(line_content) = line {
+                        if line_content.to_lowercase().contains(&search_lower) {
+                            matches.push(format!(
+                                "{}:{}:{}",
+                                path.display(),
+                                line_number + 1,
+                                line_content
+                            ));
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        matches.iter().map(|s| clean_utf8_content(s)).collect()
     }
 
     fn run_preview_cmd(&mut self) -> Vec<String> {
@@ -571,7 +615,6 @@ impl Vuit {
                 if self.switch_focus == FOCUS::FILESTRLIST {
                     vec![]
                 } else {
-                    // If in recent files mode, show the first few lines of the file
                     let reader = BufReader::new(file);
                     return reader
                         .lines()
@@ -649,7 +692,7 @@ impl Vuit {
                     let _ = terminal.clear();
                     let _ = terminal.draw(|frame| self.ui(frame));
                 } else {
-                    self.file_str_list = self.run_search_str_cmd();
+                    self.file_str_list = self.search_filelist_str();
                 }
             }
             KeyEvent {
@@ -842,7 +885,10 @@ impl Vuit {
                 modifiers: KeyModifiers::CONTROL,
                 ..
             } => {
+                self.typed_input.clear();
+                self.file_str_list.clear();
                 self.toggle_rg = !self.toggle_rg;
+                self.file_list = self.run_search_cmd();
             }
             KeyEvent {
                 code: KeyCode::Char('h'),
@@ -948,15 +994,6 @@ impl Vuit {
 
                 self.typed_input.push(c);
                 self.file_list = self.run_search_cmd();
-                //self.file_str_list = self.run_search_str_cmd();
-
-                //                if self.file_list.is_empty() {
-                //                    return;
-                //                }
-                //
-                //                if self.file_str_list.is_empty() {
-                //                    return;
-                //                }
 
                 match self.switch_focus {
                     FOCUS::RECENTFILES => {
@@ -996,15 +1033,6 @@ impl Vuit {
 
                 self.typed_input.pop();
                 self.file_list = self.run_search_cmd();
-                //self.file_str_list = self.run_search_str_cmd();
-
-                //                if self.file_list.is_empty() {
-                //                    return;
-                //                }
-                //
-                //                if self.file_str_list.is_empty() {
-                //                    return;
-                //                }
 
                 match self.switch_focus {
                     FOCUS::RECENTFILES => {
@@ -1094,6 +1122,8 @@ impl Vuit {
                 modifiers: KeyModifiers::CONTROL,
                 ..
             } => {
+                self.current_filter = self.typed_input.clone();
+                self.typed_input.clear();
                 self.toggle_rg = !self.toggle_rg;
             }
             KeyEvent {
