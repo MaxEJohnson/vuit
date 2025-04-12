@@ -1090,43 +1090,29 @@ impl Vuit {
                 modifiers: KeyModifiers::NONE,
                 ..
             } => {
-                if self.switch_focus == FOCUS::FILELIST
-                    && !self.recent_files.contains(&self.file_list[self.hltd_file])
-                {
-                    self.recent_files
-                        .push(self.file_list[self.hltd_file].to_owned());
-                }
-
-                if self.switch_focus == FOCUS::FILESTRLIST
-                    && !self
-                        .recent_files
-                        .contains(&self.file_str_list[self.hltd_file])
-                {
-                    let file_path = &self.file_str_list[self.hltd_file]
-                        .split_once(':')
-                        .map(|(before, _)| before)
-                        .unwrap_or(self.file_str_list[self.hltd_file].as_str());
-                    self.recent_files.push(file_path.to_string());
-                }
-
-                if self.recent_files.len() > 5 {
-                    self.recent_files.remove(0);
-                }
-
                 match self.switch_focus {
                     FOCUS::RECENTFILES => {
+                        if self.hltd_file >= self.recent_files.len() {
+                            return;
+                        }
                         let _ = Command::new(&self.config.editor)
                             .arg(&self.recent_files[self.hltd_file])
                             .status()
                             .expect("Failed to start selected editor");
                     }
                     FOCUS::FILELIST => {
+                        if self.hltd_file >= self.file_list.len() {
+                            return;
+                        }
                         let _ = Command::new(&self.config.editor)
                             .arg(&self.file_list[self.hltd_file])
                             .status()
                             .expect("Failed to start selected editor");
                     }
                     FOCUS::FILESTRLIST => {
+                        if self.hltd_file >= self.file_str_list.len() {
+                            return;
+                        }
                         let file_path = &self.file_str_list[self.hltd_file]
                             .split_once(':')
                             .map(|(before, _)| before)
@@ -1136,6 +1122,17 @@ impl Vuit {
                             .status()
                             .expect("Failed to start selected editor");
                     }
+                }
+
+                if self.switch_focus == FOCUS::FILELIST
+                    && !self.recent_files.contains(&self.file_list[self.hltd_file])
+                {
+                    self.recent_files
+                        .push(self.file_list[self.hltd_file].to_owned());
+                }
+
+                if self.recent_files.len() > 5 {
+                    self.recent_files.remove(0);
                 }
 
                 // Clear terminal on exit from editor
