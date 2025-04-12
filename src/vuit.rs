@@ -346,7 +346,7 @@ impl Vuit {
     fn render_recent_files(&mut self, f: &mut Frame, chunks: &[Rect]) {
         let block = Block::bordered()
             .title(Line::from(" Recent ").centered())
-            .border_set(border::THICK);
+            .border_set(border::ROUNDED);
         let list = List::new(self.recent_files.to_owned())
             .block(block)
             .style(Style::default().fg(grab_config_color(&self.config.colorscheme)))
@@ -361,7 +361,7 @@ impl Vuit {
     fn render_file_list(&mut self, f: &mut Frame, chunks: &[Rect]) {
         let block = Block::bordered()
             .title(Line::from(" Files ").centered())
-            .border_set(border::THICK);
+            .border_set(border::ROUNDED);
         let list = List::new(self.file_list.to_owned())
             .block(block)
             .style(Style::default().fg(grab_config_color(&self.config.colorscheme)))
@@ -376,7 +376,7 @@ impl Vuit {
     fn render_preview_list(&self, f: &mut Frame, chunks: &[Rect]) {
         let block = Block::bordered()
             .title(Line::from(" Preview ").centered())
-            .border_set(border::THICK);
+            .border_set(border::ROUNDED);
         let list = List::new(self.preview.to_owned())
             .block(block)
             .style(Style::default().fg(grab_config_color(&self.config.colorscheme)));
@@ -399,7 +399,7 @@ impl Vuit {
             .block(
                 Block::bordered()
                     .title(Line::from(" Command Line ").left_aligned())
-                    .border_set(border::THICK),
+                    .border_set(border::ROUNDED),
             )
             .style(Style::default().fg(grab_config_color(&self.config.colorscheme)));
 
@@ -408,7 +408,7 @@ impl Vuit {
 
     fn render_help_toggle_text_box(&mut self, f: &mut Frame, chunks: &[Rect]) {
         let box_widget = List::new(vec![" Help -> <C-h>"])
-            .block(Block::bordered().border_set(border::THICK))
+            .block(Block::bordered().border_set(border::ROUNDED))
             .style(
                 Style::default()
                     .fg(grab_config_color(&self.config.colorscheme))
@@ -420,7 +420,7 @@ impl Vuit {
     fn render_file_string_list(&mut self, f: &mut Frame, chunks: &[Rect]) {
         let block = Block::bordered()
             .title(Line::from(" Strings ").centered())
-            .border_set(border::THICK);
+            .border_set(border::ROUNDED);
         let list = List::new(self.file_str_list.to_owned())
             .block(block)
             .style(Style::default().fg(grab_config_color(&self.config.colorscheme)))
@@ -438,7 +438,7 @@ impl Vuit {
             .block(
                 Block::bordered()
                     .title(Line::from(" Terminal ").centered())
-                    .border_set(border::THICK),
+                    .border_set(border::ROUNDED),
             )
             .style(Style::default().fg(Color::White));
 
@@ -451,7 +451,7 @@ impl Vuit {
             .block(
                 Block::bordered()
                     .title(Line::from(" Help Menu ").centered())
-                    .border_set(border::THICK),
+                    .border_set(border::ROUNDED),
             )
             .style(Style::default().fg(Color::White));
         f.render_widget(list, chunks[0]);
@@ -460,7 +460,7 @@ impl Vuit {
     fn render_file_count_display(&self, f: &mut Frame, chunks: &[Rect]) {
         let count = format!(" [ {} / {} ] ", self.file_list.len(), self.fd_list.len());
         let para = Paragraph::new(count)
-            .block(Block::bordered().border_set(border::THICK))
+            .block(Block::bordered().border_set(border::ROUNDED))
             .alignment(ratatui::prelude::Alignment::Center)
             .style(Style::default().fg(grab_config_color(&self.config.colorscheme)));
 
