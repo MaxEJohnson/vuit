@@ -24,7 +24,10 @@ use clap::Command as ClapCommand;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use ignore::WalkBuilder;
+use itertools::Itertools;
+use memchr::memmem;
 use portable_pty::{unix::UnixPtySystem, CommandBuilder, PtySize, PtySystem};
+use rayon::prelude::*;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
@@ -174,14 +177,9 @@ impl Vuit {
             .expect("Failed to open PTY");
 
         let cmd = CommandBuilder::new("bash");
-
-        // Set environment variables
-
         let child = pair.slave.spawn_command(cmd).expect("Failed to spawn bash");
-
         let reader = BufReader::new(pair.master.try_clone_reader().unwrap());
         let writer = pair.master.take_writer().unwrap();
-
         let output = self.process_out.clone();
 
         thread::spawn(move || {
@@ -198,15 +196,10 @@ impl Vuit {
     }
 
     fn restart_terminal_session(&mut self) {
-        // Kill the existing bash process if it exists
         if let Some(mut child) = self.bash_process.take() {
             child.kill().expect("Failed to kill bash process");
         }
-
-        // Wait a bit before restarting to ensure it's clean
         thread::sleep(Duration::from_secs(1));
-
-        // Start a new bash session
         self.start_term();
     }
 
@@ -513,88 +506,77 @@ impl Vuit {
     }
 
     fn handle_events(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
-        if event::poll(Duration::from_millis(100))? {
-            match event::read()? {
-                Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
-                    if self.toggle_terminal {
-                        self.handle_key_event_terminal_emu(key_event, terminal);
-                    } else if self.toggle_ss {
-                        self.handle_key_event_rg(key_event, terminal);
-                    } else {
-                        self.handle_key_event(key_event, terminal);
-                    }
-                }
-                _ => {}
-            };
+        if !event::poll(Duration::from_millis(100))? {
+            return Ok(());
         }
+
+        if let Event::Key(key_event) = event::read()? {
+            if key_event.kind != KeyEventKind::Press {
+                return Ok(());
+            }
+
+            match (self.toggle_terminal, self.toggle_ss) {
+                (true, _) => self.handle_key_event_terminal_emu(key_event, terminal),
+                (false, true) => self.handle_key_event_rg(key_event, terminal),
+                _ => self.handle_key_event(key_event, terminal),
+            }
+        }
+
         Ok(())
     }
 
     fn run_fd_cmd(&mut self) {
-        let mut results = Vec::new();
-
-        for result in WalkBuilder::new(".").standard_filters(true).build() {
-            if let Ok(entry) = result {
-                let path = entry.path();
-                if path.is_file() {
-                    if let Some(path_str) = path.to_str() {
-                        results.push(path_str.to_string());
-                    }
-                }
-            }
-        }
-
-        self.fd_list = results;
+        self.fd_list = WalkBuilder::new(".")
+            .standard_filters(true)
+            .build()
+            .filter_map(Result::ok)
+            .map(|entry| entry.path().to_path_buf())
+            .filter(|path| path.is_file())
+            .filter_map(|path| path.to_str().map(String::from))
+            .collect();
     }
 
     fn run_search_cmd(&mut self) -> Vec<String> {
         let matcher = SkimMatcherV2::default();
 
-        let mut matches: Vec<(i64, &String)> = self
-            .fd_list
+        self.fd_list
             .iter()
             .filter_map(|item| {
                 matcher
                     .fuzzy_match(item, &self.typed_input)
                     .map(|score| (score, item))
             })
-            .collect();
-
-        matches.sort_by(|a, b| b.0.cmp(&a.0));
-
-        let matches_c: Vec<_> = matches
-            .into_iter()
-            .map(|(_, s)| clean_utf8_content(s))
-            .collect();
-
-        matches_c.iter().map(|s| s.to_string()).collect()
+            .sorted_unstable_by(|a, b| b.0.cmp(&a.0))
+            .map(|(_, s)| clean_utf8_content(s).to_string())
+            .collect()
     }
 
     fn search_filelist_str(&mut self) -> Vec<String> {
-        let search_lower = self.typed_input.to_lowercase();
-        let mut matches = Vec::new();
+        let search = self.typed_input.to_lowercase();
 
-        for path_str in self.file_list.iter() {
-            let path = Path::new(&path_str);
-            if let Ok(file) = File::open(path) {
+        self.file_list
+            .par_iter()
+            .filter_map(|path_str| {
+                let path = Path::new(path_str);
+                let file = File::open(path).ok()?;
                 let reader = BufReader::new(file);
+
                 for (line_number, line) in reader.lines().enumerate() {
-                    if let Ok(line_content) = line {
-                        if line_content.to_lowercase().contains(&search_lower) {
-                            matches.push(format!(
-                                "{}:{}:{}",
-                                path.display(),
-                                line_number + 1,
-                                line_content
-                            ));
-                            break;
-                        }
+                    let line = line.ok()?;
+                    let haystack = line.to_lowercase();
+                    if memmem::find(haystack.as_bytes(), search.as_bytes()).is_some() {
+                        return Some(clean_utf8_content(&format!(
+                            "{}:{}:{}",
+                            path.display(),
+                            line_number + 1,
+                            line
+                        )));
                     }
                 }
-            }
-        }
 
-        matches.iter().map(|s| clean_utf8_content(s)).collect()
+                None
+            })
+            .collect()
     }
 
     fn run_preview_cmd(&mut self) -> Vec<String> {
