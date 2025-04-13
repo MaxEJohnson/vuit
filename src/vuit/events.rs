@@ -1,4 +1,4 @@
-use crate::vuit::{Vuit, CONTEXT};
+use crate::vuit::{Context, Vuit};
 use crossterm::event::{self, Event, KeyEventKind};
 use ratatui::DefaultTerminal;
 
@@ -15,16 +15,16 @@ pub fn dispatch_event(app: &mut Vuit, terminal: &mut DefaultTerminal) -> std::io
         }
 
         match app.switch_context {
-            CONTEXT::FILEVIEWER => {
+            Context::Fileviewer => {
                 fileviewer::handler(app, key_event, terminal);
             }
-            CONTEXT::STRINGSEARCH => {
+            Context::Stringsearch => {
                 stringsearch::handler(app, key_event, terminal);
             }
-            CONTEXT::TERMINAL => {
+            Context::Terminal => {
                 terminal::handler(app, key_event, terminal);
             }
-            CONTEXT::HELP => {
+            Context::Help => {
                 fileviewer::handler(app, key_event, terminal);
             }
         }

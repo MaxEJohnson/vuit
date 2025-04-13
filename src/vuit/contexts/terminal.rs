@@ -1,6 +1,6 @@
 use crate::vuit::ui::next_colorscheme;
 use crate::vuit::utils::remove_ansi_escape_codes;
-use crate::vuit::{Vuit, CONTEXT};
+use crate::vuit::{Context, Vuit};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use portable_pty::{unix::UnixPtySystem, CommandBuilder, PtySize, PtySystem};
 use ratatui::prelude::*;
@@ -84,7 +84,7 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
             ..
         } => {
             app.prev_context = app.switch_context;
-            app.switch_context = CONTEXT::FILEVIEWER;
+            app.switch_context = Context::Fileviewer;
         }
         KeyEvent {
             code: KeyCode::Char('c'),
@@ -100,12 +100,12 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
             modifiers: KeyModifiers::CONTROL,
             ..
         } => {
-            if app.switch_context == CONTEXT::HELP {
-                app.prev_context = CONTEXT::HELP;
+            if app.switch_context == Context::Help {
+                app.prev_context = Context::Help;
                 app.switch_context = app.prev_context;
             } else {
                 app.prev_context = app.switch_context;
-                app.switch_context = CONTEXT::HELP;
+                app.switch_context = Context::Help;
             }
         }
         _ => {}
@@ -131,10 +131,8 @@ pub fn start_term(app: &mut Vuit) {
 
     thread::spawn(move || {
         for line in reader.lines() {
-            if let Ok(line_str) = line {
-                let mut output = output.lock().unwrap();
-                output.push(line_str);
-            }
+            let mut output = output.lock().unwrap();
+            output.push(line.ok().unwrap_or_default());
         }
     });
 
@@ -159,13 +157,13 @@ fn send_cmd_to_proc_term(app: &mut Vuit) {
         }
         "exit" => {
             restart_terminal_session(app);
-            app.switch_context = CONTEXT::FILEVIEWER;
-            app.prev_context = CONTEXT::TERMINAL;
+            app.switch_context = Context::Fileviewer;
+            app.prev_context = Context::Terminal;
         }
         "quit" => {
             restart_terminal_session(app);
-            app.switch_context = CONTEXT::FILEVIEWER;
-            app.prev_context = CONTEXT::TERMINAL;
+            app.switch_context = Context::Fileviewer;
+            app.prev_context = Context::Terminal;
         }
         "restart" => {
             restart_terminal_session(app);
@@ -175,9 +173,7 @@ fn send_cmd_to_proc_term(app: &mut Vuit) {
         }
         _ => {
             if let Some(ref mut bash_stdin) = *app.command_sender.lock().unwrap() {
-                match writeln!(bash_stdin, "{}", command) {
-                    _ => {}
-                };
+                writeln!(bash_stdin, "{}", command).unwrap_or(());
             }
         }
     }

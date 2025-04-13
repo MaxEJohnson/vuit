@@ -43,30 +43,22 @@ const PREVIEW_NUM_LINES: u16 = 50;
 const HELP_TEXT_BOX_NUM_LINES: u16 = 18;
 
 // Focus States
-#[derive(PartialEq, Eq)]
-enum FOCUS {
-    RECENTFILES,
-    FILELIST,
-    FILESTRLIST,
-}
-impl Default for FOCUS {
-    fn default() -> Self {
-        FOCUS::FILELIST
-    }
+#[derive(PartialEq, Eq, Default)]
+enum Focus {
+    Recentfiles,
+    #[default]
+    Filelist,
+    Filestrlist,
 }
 
 // Context States
-#[derive(PartialEq, Eq, Clone, Copy)]
-enum CONTEXT {
-    FILEVIEWER,
-    STRINGSEARCH,
-    TERMINAL,
-    HELP,
-}
-impl Default for CONTEXT {
-    fn default() -> Self {
-        CONTEXT::FILEVIEWER
-    }
+#[derive(PartialEq, Eq, Clone, Copy, Default)]
+enum Context {
+    #[default]
+    Fileviewer,
+    Stringsearch,
+    Terminal,
+    Help,
 }
 
 // Vuit Configuration
@@ -113,9 +105,9 @@ pub struct Vuit {
     command_sender: Arc<Mutex<Option<Box<dyn Write + Send>>>>,
 
     // State Variables
-    switch_focus: FOCUS,
-    switch_context: CONTEXT,
-    prev_context: CONTEXT,
+    switch_focus: Focus,
+    switch_context: Context,
+    prev_context: Context,
     hltd_file: usize,
     file_list_state: ListState,
     file_str_list_state: ListState,
@@ -130,10 +122,10 @@ pub struct Vuit {
 impl Vuit {
     fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
         // Initialize Focus to File List
-        self.switch_focus = FOCUS::FILELIST;
+        self.switch_focus = Focus::Filelist;
 
         // Initialize Context
-        self.switch_context = CONTEXT::FILEVIEWER;
+        self.switch_context = Context::Fileviewer;
 
         // Populate fd list
         self.run_fd_cmd();
@@ -220,19 +212,19 @@ impl Vuit {
 
     fn run_preview_cmd(&mut self) -> Vec<String> {
         let file_list = match self.switch_focus {
-            FOCUS::RECENTFILES => &self.recent_files,
-            FOCUS::FILELIST => &self.file_list,
-            FOCUS::FILESTRLIST => &self.file_str_list,
+            Focus::Recentfiles => &self.recent_files,
+            Focus::Filelist => &self.file_list,
+            Focus::Filestrlist => &self.file_str_list,
         };
 
-        if file_list.is_empty() || self.switch_focus == FOCUS::FILESTRLIST {
+        if file_list.is_empty() || self.switch_focus == Focus::Filestrlist {
             return vec![];
         }
 
         let file_path = &file_list[self.hltd_file];
 
         let num_lines =
-            if self.switch_context == CONTEXT::TERMINAL || self.switch_context == CONTEXT::HELP {
+            if self.switch_context == Context::Terminal || self.switch_context == Context::Help {
                 PREVIEW_NUM_LINES - TERMINAL_NUM_LINES
             } else {
                 PREVIEW_NUM_LINES
@@ -242,16 +234,16 @@ impl Vuit {
 
         match File::open(file_path) {
             Ok(file) => {
-                if self.switch_focus == FOCUS::FILESTRLIST {
+                if self.switch_focus == Focus::Filestrlist {
                     vec![]
                 } else {
                     let reader = BufReader::new(file);
-                    return reader
+                    reader
                         .lines()
                         .take(num_lines)
                         .filter_map(Result::ok)
                         .map(|line| clean_utf8_content(&line))
-                        .collect::<Vec<String>>();
+                        .collect::<Vec<String>>()
                 }
             }
             Err(_) => vec!["No Preview Available".to_string()],

@@ -1,6 +1,6 @@
 use crate::vuit::ui::{dispatch_render, next_colorscheme};
 use crate::vuit::utils::grab_config_color;
-use crate::vuit::{Vuit, CONTEXT, FOCUS};
+use crate::vuit::{Context, Focus, Vuit};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::prelude::*;
 use ratatui::{
@@ -49,7 +49,7 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
             code: KeyCode::Enter,
             ..
         } => {
-            if app.switch_focus == FOCUS::FILESTRLIST
+            if app.switch_focus == Focus::Filestrlist
                 && app.file_str_list_state.selected().is_some()
             {
                 if !app.recent_files.contains(&app.file_str_list[app.hltd_file]) {
@@ -115,17 +115,17 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
         } => {
             // Navigate file list down
             match app.switch_focus {
-                FOCUS::RECENTFILES => {
+                Focus::Recentfiles => {
                     if app.recent_files.is_empty() {
                         return;
                     }
                 }
-                FOCUS::FILELIST => {
+                Focus::Filelist => {
                     if app.file_list.is_empty() {
                         return;
                     }
                 }
-                FOCUS::FILESTRLIST => {
+                Focus::Filestrlist => {
                     if app.file_str_list.is_empty() {
                         return;
                     }
@@ -135,19 +135,19 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
             app.hltd_file += 1;
 
             match app.switch_focus {
-                FOCUS::RECENTFILES => {
+                Focus::Recentfiles => {
                     if app.hltd_file >= app.recent_files.len() && !app.recent_files.is_empty() {
                         app.hltd_file = app.recent_files.len() - 1;
                     }
                     app.recent_state.select(Some(app.hltd_file));
                 }
-                FOCUS::FILELIST => {
+                Focus::Filelist => {
                     if app.hltd_file >= app.file_list.len() && !app.file_list.is_empty() {
                         app.hltd_file = app.file_list.len() - 1;
                     }
                     app.file_list_state.select(Some(app.hltd_file));
                 }
-                FOCUS::FILESTRLIST => {
+                Focus::Filestrlist => {
                     if app.hltd_file >= app.file_str_list.len() && !app.file_str_list.is_empty() {
                         app.hltd_file = app.file_str_list.len() - 1;
                     }
@@ -166,17 +166,17 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
         } => {
             // Navigate file list up
             match app.switch_focus {
-                FOCUS::RECENTFILES => {
+                Focus::Recentfiles => {
                     if app.recent_files.is_empty() {
                         return;
                     }
                 }
-                FOCUS::FILELIST => {
+                Focus::Filelist => {
                     if app.file_list.is_empty() {
                         return;
                     }
                 }
-                FOCUS::FILESTRLIST => {
+                Focus::Filestrlist => {
                     if app.file_str_list.is_empty() {
                         return;
                     }
@@ -189,13 +189,13 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
 
             app.hltd_file -= 1;
             match app.switch_focus {
-                FOCUS::RECENTFILES => {
+                Focus::Recentfiles => {
                     app.recent_state.select(Some(app.hltd_file));
                 }
-                FOCUS::FILELIST => {
+                Focus::Filelist => {
                     app.file_list_state.select(Some(app.hltd_file));
                 }
-                FOCUS::FILESTRLIST => {
+                Focus::Filestrlist => {
                     app.file_str_list_state.select(Some(app.hltd_file));
                 }
             }
@@ -206,35 +206,35 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
         } => {
             // Switch between recent and search files
             match app.switch_focus {
-                FOCUS::RECENTFILES => {
+                Focus::Recentfiles => {
                     if !app.file_str_list.is_empty() {
-                        app.switch_focus = FOCUS::FILESTRLIST;
+                        app.switch_focus = Focus::Filestrlist;
                     }
                     if !app.file_list.is_empty() {
-                        app.switch_focus = FOCUS::FILELIST;
+                        app.switch_focus = Focus::Filelist;
                     }
                 }
-                FOCUS::FILELIST => {
+                Focus::Filelist => {
                     if !app.recent_files.is_empty() {
-                        app.switch_focus = FOCUS::RECENTFILES;
+                        app.switch_focus = Focus::Recentfiles;
                     }
 
                     if !app.file_str_list.is_empty() {
-                        app.switch_focus = FOCUS::FILESTRLIST;
+                        app.switch_focus = Focus::Filestrlist;
                     }
                 }
-                FOCUS::FILESTRLIST => {
+                Focus::Filestrlist => {
                     if !app.file_list.is_empty() {
-                        app.switch_focus = FOCUS::FILELIST;
+                        app.switch_focus = Focus::Filelist;
                     }
                     if !app.recent_files.is_empty() {
-                        app.switch_focus = FOCUS::RECENTFILES;
+                        app.switch_focus = Focus::Recentfiles;
                     }
                 }
             }
 
             match app.switch_focus {
-                FOCUS::RECENTFILES => {
+                Focus::Recentfiles => {
                     app.file_list_state.select(None);
                     app.file_str_list_state.select(None);
                     app.hltd_file = 0;
@@ -243,7 +243,7 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
                         return;
                     }
                 }
-                FOCUS::FILELIST => {
+                Focus::Filelist => {
                     app.file_str_list_state.select(None);
                     app.recent_state.select(None);
                     app.hltd_file = 0;
@@ -252,7 +252,7 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
                         return;
                     }
                 }
-                FOCUS::FILESTRLIST => {
+                Focus::Filestrlist => {
                     app.file_list_state.select(None);
                     app.recent_state.select(None);
                     app.hltd_file = 0;
@@ -287,7 +287,7 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
             app.typed_input.clear();
             app.file_str_list.clear();
             app.prev_context = app.switch_context;
-            app.switch_context = CONTEXT::FILEVIEWER;
+            app.switch_context = Context::Fileviewer;
             app.file_list = app.run_search_cmd();
         }
         KeyEvent {
@@ -295,12 +295,12 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
             modifiers: KeyModifiers::CONTROL,
             ..
         } => {
-            if app.switch_context == CONTEXT::HELP {
-                app.prev_context = CONTEXT::HELP;
+            if app.switch_context == Context::Help {
+                app.prev_context = Context::Help;
                 app.switch_context = app.prev_context;
             } else {
                 app.prev_context = app.switch_context;
-                app.switch_context = CONTEXT::HELP;
+                app.switch_context = Context::Help;
             }
         }
         _ => {}

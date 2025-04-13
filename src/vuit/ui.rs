@@ -1,4 +1,4 @@
-use crate::vuit::{Vuit, CONTEXT};
+use crate::vuit::{Context, Vuit};
 use ratatui::{
     layout::{Constraint, Direction, Layout},
     prelude::Rect,
@@ -43,16 +43,16 @@ pub fn dispatch_render(app: &mut Vuit, frame: &mut Frame) {
     render_help_toggle_text_box(app, frame, &search_split_help_chunks);
 
     match app.switch_context {
-        CONTEXT::FILEVIEWER => {
+        Context::Fileviewer => {
             render_file_count_display(app, frame, &left_chunks);
         }
-        CONTEXT::STRINGSEARCH => {
+        Context::Stringsearch => {
             stringsearch::render(app, frame, &search_terminal_chunks);
         }
-        CONTEXT::TERMINAL => {
+        Context::Terminal => {
             terminal::render(app, frame, &search_terminal_chunks);
         }
-        CONTEXT::HELP => {
+        Context::Help => {
             render_help_menu(app, frame, &search_terminal_chunks);
         }
     }
@@ -84,7 +84,7 @@ fn render_preview_list(app: &mut Vuit, f: &mut Frame, chunks: &[Rect]) {
 }
 
 fn render_search_input(app: &mut Vuit, f: &mut Frame, chunks: &[Rect]) {
-    let filter = if app.switch_context == CONTEXT::STRINGSEARCH {
+    let filter = if app.switch_context == Context::Stringsearch {
         let flt = if app.current_filter.is_empty() {
             "null".to_owned()
         } else {
@@ -177,9 +177,9 @@ fn build_help_text() -> Vec<String> {
 }
 
 fn make_main_layout(app: &Vuit, frame: &Frame) -> (Vec<Rect>, u16) {
-    let (search_lines, terminal_lines) = if app.switch_context == CONTEXT::TERMINAL
-        || app.switch_context == CONTEXT::HELP
-        || app.switch_context == CONTEXT::STRINGSEARCH
+    let (search_lines, terminal_lines) = if app.switch_context == Context::Terminal
+        || app.switch_context == Context::Help
+        || app.switch_context == Context::Stringsearch
     {
         (SEARCH_BAR_NUM_LINES, TERMINAL_NUM_LINES)
     } else {
@@ -226,9 +226,9 @@ fn make_left_chunks(top_chunks: &[Rect]) -> Vec<Rect> {
 }
 
 fn make_search_terminal_chunks(app: &Vuit, chunks: &[Rect]) -> Vec<Rect> {
-    if app.switch_context == CONTEXT::STRINGSEARCH
-        || app.switch_context == CONTEXT::TERMINAL
-        || app.switch_context == CONTEXT::HELP
+    if app.switch_context == Context::Stringsearch
+        || app.switch_context == Context::Terminal
+        || app.switch_context == Context::Help
     {
         Layout::default()
             .direction(Direction::Vertical)
