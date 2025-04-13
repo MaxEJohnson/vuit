@@ -1,5 +1,5 @@
-use vuit::run;
+mod vuit;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    run()
+    vuit::run()
 }
