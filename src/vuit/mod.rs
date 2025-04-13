@@ -21,6 +21,7 @@ use std::{
     io::{self, BufRead, BufReader, Write},
     path::Path,
     sync::{Arc, Mutex},
+    thread,
 };
 
 // Ratatui
@@ -34,6 +35,7 @@ use itertools::Itertools;
 use memchr::memmem;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 // Constants
 const RECENT_BUFFERS_NUM_LINES: u16 = 8;
@@ -98,11 +100,17 @@ pub struct Vuit {
     term_out: String,
     help_menu: Vec<String>,
     current_filter: String,
+    search_progress_str: String,
 
     // Terminal vars
     bash_process: Option<Box<dyn portable_pty::Child + Send + Sync>>,
     process_out: Arc<Mutex<Vec<String>>>,
     command_sender: Arc<Mutex<Option<Box<dyn Write + Send>>>>,
+
+    // String Search vars
+    search_in_progress: bool,
+    search_progress: Arc<AtomicUsize>,
+    search_result: Arc<Mutex<Option<Vec<String>>>>,
 
     // State Variables
     switch_focus: Focus,
@@ -182,32 +190,56 @@ impl Vuit {
             .collect()
     }
 
-    fn search_filelist_str(&mut self) -> Vec<String> {
+    fn start_async_search(&mut self) {
         let search = self.typed_input.to_lowercase();
+        let file_list = self.file_list.clone();
+        let progress = Arc::clone(&self.search_progress);
+        let result = Arc::clone(&self.search_result);
 
-        self.file_list
-            .par_iter()
-            .filter_map(|path_str| {
-                let path = Path::new(path_str);
-                let file = File::open(path).ok()?;
-                let reader = BufReader::new(file);
+        self.search_in_progress = true;
 
-                for (line_number, line) in reader.lines().enumerate() {
-                    let line = line.ok()?;
-                    let haystack = line.to_lowercase();
-                    if memmem::find(haystack.as_bytes(), search.as_bytes()).is_some() {
-                        return Some(clean_utf8_content(&format!(
-                            "{}:{}:{}",
-                            path.display(),
-                            line_number + 1,
-                            line
-                        )));
+        progress.store(0, Ordering::Relaxed);
+        thread::spawn(move || {
+            let matches: Vec<String> = file_list
+                .par_iter()
+                .flat_map_iter(|path_str| {
+                    let path = Path::new(path_str);
+                    let file = match File::open(path) {
+                        Ok(f) => f,
+                        Err(_) => {
+                            progress.fetch_add(1, Ordering::Relaxed);
+                            return Some(vec![]);
+                        }
+                    };
+                    let reader = BufReader::new(file);
+
+                    let mut file_matches = Vec::new();
+
+                    for (line_number, line) in reader.lines().enumerate() {
+                        if let Ok(line) = line {
+                            if memmem::find(line.to_lowercase().as_bytes(), search.as_bytes())
+                                .is_some()
+                            {
+                                file_matches.push(clean_utf8_content(&format!(
+                                    "{}:{}:{}",
+                                    path.display(),
+                                    line_number + 1,
+                                    line
+                                )));
+                            }
+                        }
                     }
-                }
 
-                None
-            })
-            .collect()
+                    progress.fetch_add(1, Ordering::Relaxed);
+                    Some(file_matches)
+                })
+                .flatten()
+                .collect();
+
+            if let Ok(mut lock) = result.lock() {
+                *lock = Some(matches);
+            }
+        });
     }
 
     fn run_preview_cmd(&mut self) -> Vec<String> {

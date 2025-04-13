@@ -12,10 +12,29 @@ use ratatui::{
 use std::process::Command;
 
 pub fn render(app: &mut Vuit, frame: &mut Frame, chunks: &[Rect]) {
+    let area_height = chunks[0].height as usize;
+    let total = app.file_str_list.len();
+    let selected = app.hltd_file.min(total.saturating_sub(1));
+
+    // Compute visible range based on hltd_file
+    let start = if selected >= area_height {
+        selected + 1 - area_height
+    } else {
+        0
+    };
+    let end = (start + area_height).min(total);
+    let visible = &app.file_str_list[start..end];
+
+    // Only set selection if this context is focused
+    if app.switch_focus == Focus::Filestrlist {
+        app.file_str_list_state.select(Some(selected - start));
+    }
+
     let block = Block::bordered()
         .title(Line::from(" Strings ").centered())
         .border_set(border::ROUNDED);
-    let list = List::new(app.file_str_list.to_owned())
+
+    let list = List::new(visible.to_owned())
         .block(block)
         .style(Style::default().fg(grab_config_color(&app.config.colorscheme)))
         .highlight_style(
@@ -23,6 +42,7 @@ pub fn render(app: &mut Vuit, frame: &mut Frame, chunks: &[Rect]) {
                 .fg(Color::White)
                 .bg(grab_config_color(&app.config.highlight_color)),
         );
+
     frame.render_stateful_widget(list, chunks[0], &mut app.file_str_list_state);
 }
 
@@ -95,7 +115,7 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
                 let _ = terminal.clear();
                 let _ = terminal.draw(|frame| dispatch_render(app, frame));
             } else {
-                app.file_str_list = app.search_filelist_str();
+                app.start_async_search();
             }
         }
         KeyEvent {
@@ -286,6 +306,7 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
         } => {
             app.typed_input.clear();
             app.file_str_list.clear();
+            app.search_progress_str.clear();
             app.prev_context = app.switch_context;
             app.switch_context = Context::Fileviewer;
             app.file_list = app.run_search_cmd();

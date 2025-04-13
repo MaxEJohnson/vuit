@@ -12,10 +12,38 @@ use ratatui::{
 use std::process::Command;
 
 pub fn render(app: &mut Vuit, frame: &mut Frame, chunks: &[Rect]) {
+    let area_height = chunks[1].height as usize;
+    let total = app.file_list.len();
+    let selected = app.hltd_file.min(total.saturating_sub(1));
+
+    let start = if selected >= area_height {
+        selected + 1 - area_height
+    } else {
+        0
+    };
+    let end = (start + area_height).min(total);
+    let visible = &app.file_list[start..end];
+
+    let truncated: Vec<String> = visible
+        .iter()
+        .map(|line| {
+            if line.len() > 100 {
+                format!("…{}", &line[line.len() - 99..])
+            } else {
+                line.clone()
+            }
+        })
+        .collect();
+
+    if app.switch_focus == Focus::Filelist {
+        app.file_list_state.select(Some(selected - start));
+    }
+
     let block = Block::bordered()
         .title(Line::from(" Files ").centered())
         .border_set(border::ROUNDED);
-    let list = List::new(app.file_list.to_owned())
+
+    let list = List::new(truncated)
         .block(block)
         .style(Style::default().fg(grab_config_color(&app.config.colorscheme)))
         .highlight_style(
@@ -23,6 +51,7 @@ pub fn render(app: &mut Vuit, frame: &mut Frame, chunks: &[Rect]) {
                 .fg(Color::White)
                 .bg(grab_config_color(&app.config.highlight_color)),
         );
+
     frame.render_stateful_widget(list, chunks[1], &mut app.file_list_state);
 }
 

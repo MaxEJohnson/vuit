@@ -8,6 +8,7 @@ use ratatui::{
     widgets::{Block, List, Paragraph},
     DefaultTerminal, Frame,
 };
+use std::sync::atomic::Ordering;
 
 use crate::vuit::contexts::{fileviewer, stringsearch, terminal};
 use crate::vuit::utils::grab_config_color;
@@ -48,6 +49,7 @@ pub fn dispatch_render(app: &mut Vuit, frame: &mut Frame) {
         }
         Context::Stringsearch => {
             stringsearch::render(app, frame, &search_terminal_chunks);
+            render_search_progress_display(app, frame, &search_terminal_chunks);
         }
         Context::Terminal => {
             terminal::render(app, frame, &search_terminal_chunks);
@@ -149,6 +151,38 @@ fn render_file_count_display(app: &mut Vuit, f: &mut Frame, chunks: &[Rect]) {
         .constraints([
             Constraint::Length(chunks[1].width.saturating_sub(24)),
             Constraint::Length(21),
+        ])
+        .split(filecount_chunks[1]);
+
+    f.render_widget(para, right_chunks[1]);
+}
+
+fn render_search_progress_display(app: &mut Vuit, f: &mut Frame, chunks: &[Rect]) {
+    let status = if app.search_in_progress {
+        let progress = app.search_progress.load(Ordering::Relaxed);
+        format!(" [ {} / {} ] ", progress, app.file_list.len())
+    } else {
+        format!(" [ {} Matches ] ", app.file_str_list.len())
+    };
+
+    let para = Paragraph::new(status)
+        .block(Block::bordered().border_set(border::ROUNDED))
+        .alignment(ratatui::prelude::Alignment::Center)
+        .style(Style::default().fg(grab_config_color(&app.config.colorscheme)));
+
+    let filecount_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(chunks[0].height.saturating_sub(4)),
+            Constraint::Length(3),
+        ])
+        .split(chunks[0]);
+
+    let right_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Length(chunks[0].width.saturating_sub(30)),
+            Constraint::Length(27),
         ])
         .split(filecount_chunks[1]);
 
