@@ -14,7 +14,11 @@ use std::process::Command;
 pub fn render(app: &mut Vuit, frame: &mut Frame, chunks: &[Rect]) {
     let area_height = chunks[0].height as usize;
     let total = app.file_str_list.len();
-    let selected = app.hltd_file.min(total.saturating_sub(1));
+    let selected = if Focus::Filestrlist == app.switch_focus {
+        app.hltd_file.min(total.saturating_sub(1))
+    } else {
+        0
+    };
 
     // Compute visible range based on hltd_file
     let start = if selected >= area_height {

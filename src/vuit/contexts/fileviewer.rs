@@ -14,13 +14,19 @@ use std::process::Command;
 pub fn render(app: &mut Vuit, frame: &mut Frame, chunks: &[Rect]) {
     let area_height = chunks[1].height as usize;
     let total = app.file_list.len();
-    let selected = app.hltd_file.min(total.saturating_sub(1));
+    let selected = if Focus::Filelist == app.switch_focus {
+        app.hltd_file.min(total.saturating_sub(1))
+    } else {
+        0
+    };
 
+    if Focus::Filelist == app.switch_focus {}
     let start = if selected >= area_height {
         selected + 1 - area_height
     } else {
         0
     };
+
     let end = (start + area_height).min(total);
     let visible = &app.file_list[start..end];
 
