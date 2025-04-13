@@ -2,7 +2,7 @@
 
 A buffer manager layer for Vim that provides a terminal-like interface to search for, open, and edit files.
 
-<img width="1512" alt="image" src="https://github.com/user-attachments/assets/2da07697-debb-4eb1-9d9e-bd134a4d2fb3" />
+<img width="1512" alt="image" src="https://github.com/user-attachments/assets/91ddc8e1-8f2f-4ed1-8350-d5bda123515a" />
 
 ## Installation (Mac/WSL/Linux)
 
