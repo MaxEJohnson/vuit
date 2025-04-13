@@ -97,10 +97,16 @@ fn render_search_input(app: &mut Vuit, f: &mut Frame, chunks: &[Rect]) {
         format!(" > {}", app.typed_input)
     };
 
+    let title = if app.switch_context == Context::Terminal {
+        " Command Line "
+    } else {
+        " Search "
+    };
+
     let para = Paragraph::new(Text::from(filter))
         .block(
             Block::bordered()
-                .title(Line::from(" Command Line ").left_aligned())
+                .title(Line::from(title).left_aligned())
                 .border_set(border::ROUNDED),
         )
         .style(Style::default().fg(grab_config_color(&app.config.colorscheme)));
