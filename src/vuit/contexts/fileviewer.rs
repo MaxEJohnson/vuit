@@ -385,6 +385,19 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
             app.switch_context = Context::Terminal;
         }
         KeyEvent {
+            code: KeyCode::Char('x'),
+            modifiers: KeyModifiers::CONTROL,
+            ..
+        } => {
+            if app.switch_focus == Focus::Recentfiles {
+                if app.recent_files.len() > 0 {
+                    app.recent_files.remove(app.hltd_file);
+                    app.hltd_file = 0;
+                    app.recent_state.select(Some(app.hltd_file));
+                }
+            }
+        }
+        KeyEvent {
             code: KeyCode::Char('h'),
             modifiers: KeyModifiers::CONTROL,
             ..
