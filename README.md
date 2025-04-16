@@ -20,6 +20,8 @@ ENTER      - On highlighted file, open Vim.
 
 TAB        - Switch between the "Files" window and the "Recent" window.
 
+&lt;C-x&gt;      - Remove highlighted file from "Recent".
+
 &lt;C-r&gt;      - Refresh CWD file scan.
 
 &lt;C-n&gt;      - Cycle through colorschemes.

@@ -198,21 +198,23 @@ fn render_search_progress_display(app: &mut Vuit, f: &mut Frame, chunks: &[Rect]
 fn build_help_text() -> Vec<String> {
     vec![
         "(General Commands)".into(),
-        "<C-t> - Toggle terminal window".into(),
-        "<C-h> - Toggle help menu window".into(),
-        "<C-r> - Rescan CWD for updates".into(),
-        "Esc   - Exit Vuit".into(),
+        "   <C-t> - Toggle terminal window".into(),
+        "   <C-f> - Toggle string search window".into(),
+        "   <C-r> - Rescan CWD for updates".into(),
+        "   <C-x> - Remove highlighted file from recent window".into(),
+        "   Esc   - Exit Vuit".into(),
         "".into(),
-        "(File List Focus Commands)".into(),
-        "Up/Down, Ctrl-j/Ctrl-k - Navigate the file list".into(),
-        "Enter - Open selected file".into(),
-        "Tab   - Switch between recent and file windows".into(),
+        "(File/Recent Focus Commands)".into(),
+        "   Up/Down, Ctrl-j/Ctrl-k - Navigate the file list".into(),
+        "   Enter - Open selected file".into(),
+        "   Tab   - Switch between recent and file windows".into(),
         "".into(),
-        "(Terminal Focus Commands)".into(),
-        "<C-t> - Switches focus back to the file list, but terminal session is preserved".into(),
-        "quit, exit - Switches focus back to the file list and restarts the terminal instance"
-            .into(),
-        "restart - If terminal seems unresponsive, this will restart the session".into(),
+        "(Terminal Context Commands)".into(),
+        "   <C-t> - Switches focus back to the file list, but terminal session is preserved".into(),
+        "".into(),
+        "(String Search Context Commands)".into(),
+        "   <C-f> - Switches focus back to the file list, but search session is preserved".into(),
+        "   Enter - Search for the string in the filtered file list or if search is already complete, enter highlighted file".into(),
     ]
 }
 
