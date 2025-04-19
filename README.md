@@ -30,6 +30,8 @@ TAB        - Switch between the "Files" window and the "Recent" window.
 
 &lt;C-f&gt;      - Toggle String Search.
 
+     &lt;C-r&gt;      - Start Search and Replace while in String Search context.
+
 &lt;C-h&gt;      - Toggle Help Menu.
 
 ESC        - Exit vuit.

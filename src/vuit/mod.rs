@@ -6,6 +6,7 @@ pub mod utils;
 pub mod contexts {
     pub mod fileviewer;
     pub mod stringsearch;
+    pub mod stringsearchreplace;
     pub mod terminal;
 }
 
@@ -17,7 +18,8 @@ use crate::vuit::utils::{clean_utf8_content, expand_tilde};
 
 // Std Lib
 use std::{
-    fs::{self, File},
+    collections::HashMap,
+    fs::{self, read_to_string, write, File},
     io::{self, BufRead, BufReader, Write},
     path::Path,
     sync::{Arc, Mutex},
@@ -59,6 +61,7 @@ enum Context {
     #[default]
     Fileviewer,
     Stringsearch,
+    Stringsearchreplace,
     Terminal,
     Help,
 }
@@ -100,6 +103,7 @@ pub struct Vuit {
     term_out: String,
     help_menu: Vec<String>,
     current_filter: String,
+    current_str_filter: String,
     search_progress_str: String,
 
     // Terminal vars
@@ -240,6 +244,41 @@ impl Vuit {
                 *lock = Some(matches);
             }
         });
+    }
+
+    fn replace_string_occurences(&mut self) {
+        let mut file_cache: HashMap<String, Vec<String>> = HashMap::new();
+
+        for entry in self.file_str_list.iter() {
+            let parts: Vec<&str> = entry.split(':').collect();
+            if parts.len() < 3 {
+                continue;
+            }
+            let file_path = parts[0].to_string();
+            let line_number: usize = match parts[1].parse() {
+                Ok(num) => num,
+                Err(_) => continue,
+            };
+
+            let lines = file_cache.entry(file_path.clone()).or_insert_with(|| {
+                read_to_string(&file_path)
+                    .map(|content| content.lines().map(|line| line.to_string()).collect())
+                    .unwrap_or_default()
+            });
+
+            if line_number == 0 || line_number > lines.len() {
+                continue;
+            }
+
+            lines[line_number - 1] =
+                lines[line_number - 1].replace(&self.current_str_filter, &self.typed_input);
+        }
+
+        for (filename, lines) in file_cache {
+            let content = lines.join("\n");
+            let _ = write(&filename, content);
+        }
+        self.file_str_list.clear();
     }
 
     fn run_preview_cmd(&mut self) -> Vec<String> {

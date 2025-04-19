@@ -1,60 +1,8 @@
 use crate::vuit::ui::{dispatch_render, next_colorscheme};
-use crate::vuit::utils::grab_config_color;
 use crate::vuit::{Context, Focus, Vuit};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use ratatui::prelude::*;
-use ratatui::{
-    symbols::border,
-    text::Line,
-    widgets::{Block, List},
-    DefaultTerminal, Frame,
-};
+use ratatui::DefaultTerminal;
 use std::process::Command;
-
-pub fn render(app: &mut Vuit, frame: &mut Frame, chunks: &[Rect]) {
-    let area_height = chunks[0].height as usize;
-    let total = app.file_str_list.len();
-    let selected = if Focus::Filestrlist == app.switch_focus {
-        app.hltd_file.min(total.saturating_sub(1))
-    } else {
-        0
-    };
-
-    // Compute visible range based on hltd_file
-    let start = if selected >= area_height {
-        selected + 1 - area_height
-    } else {
-        0
-    };
-    let end = (start + area_height).min(total);
-    let visible = &app.file_str_list[start..end];
-
-    // Only set selection if this context is focused
-    if app.switch_focus == Focus::Filestrlist {
-        app.file_str_list_state.select(Some(selected - start));
-    }
-
-    let block = if app.switch_context == Context::Stringsearch {
-        Block::bordered()
-            .title(Line::from(" String Search ").centered())
-            .border_set(border::ROUNDED)
-    } else {
-        Block::bordered()
-            .title(Line::from(" String Replace ").centered())
-            .border_set(border::ROUNDED)
-    };
-
-    let list = List::new(visible.to_owned())
-        .block(block)
-        .style(Style::default().fg(grab_config_color(&app.config.colorscheme)))
-        .highlight_style(
-            Style::default()
-                .fg(Color::White)
-                .bg(grab_config_color(&app.config.highlight_color)),
-        );
-
-    frame.render_stateful_widget(list, chunks[0], &mut app.file_str_list_state);
-}
 
 pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
     match key {
@@ -125,7 +73,7 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
                 let _ = terminal.clear();
                 let _ = terminal.draw(|frame| dispatch_render(app, frame));
             } else {
-                app.start_async_search();
+                app.replace_string_occurences();
             }
         }
         KeyEvent {
@@ -299,10 +247,9 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
             modifiers: KeyModifiers::CONTROL,
             ..
         } => {
-            app.current_str_filter = app.typed_input.clone();
+            app.current_str_filter.clear();
             app.typed_input.clear();
-            app.prev_context = app.switch_context;
-            app.switch_context = Context::Stringsearchreplace;
+            app.switch_context = Context::Stringsearch;
         }
         KeyEvent {
             code: KeyCode::Char('n'),
@@ -319,6 +266,7 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
             app.typed_input.clear();
             app.file_str_list.clear();
             app.search_progress_str.clear();
+            app.current_str_filter.clear();
             app.prev_context = app.switch_context;
             app.switch_context = Context::Fileviewer;
             app.file_list = app.run_search_cmd();

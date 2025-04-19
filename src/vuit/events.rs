@@ -3,7 +3,7 @@ use crossterm::event::{self, Event, KeyEventKind};
 use ratatui::DefaultTerminal;
 use std::sync::atomic::Ordering;
 
-use crate::vuit::contexts::{fileviewer, stringsearch, terminal};
+use crate::vuit::contexts::{fileviewer, stringsearch, stringsearchreplace, terminal};
 
 pub fn dispatch_event(app: &mut Vuit, terminal: &mut DefaultTerminal) -> std::io::Result<()> {
     if !event::poll(std::time::Duration::from_millis(100))? {
@@ -31,6 +31,9 @@ pub fn dispatch_event(app: &mut Vuit, terminal: &mut DefaultTerminal) -> std::io
             }
             Context::Stringsearch => {
                 stringsearch::handler(app, key_event, terminal);
+            }
+            Context::Stringsearchreplace => {
+                stringsearchreplace::handler(app, key_event, terminal);
             }
             Context::Terminal => {
                 terminal::handler(app, key_event, terminal);

@@ -51,6 +51,9 @@ pub fn dispatch_render(app: &mut Vuit, frame: &mut Frame) {
             stringsearch::render(app, frame, &search_terminal_chunks);
             render_search_progress_display(app, frame, &search_terminal_chunks);
         }
+        Context::Stringsearchreplace => {
+            stringsearch::render(app, frame, &search_terminal_chunks);
+        }
         Context::Terminal => {
             terminal::render(app, frame, &search_terminal_chunks);
         }
@@ -86,13 +89,28 @@ fn render_preview_list(app: &mut Vuit, f: &mut Frame, chunks: &[Rect]) {
 }
 
 fn render_search_input(app: &mut Vuit, f: &mut Frame, chunks: &[Rect]) {
-    let filter = if app.switch_context == Context::Stringsearch {
+    let filter = if app.switch_context == Context::Stringsearch
+        || app.switch_context == Context::Stringsearchreplace
+    {
         let flt = if app.current_filter.is_empty() {
             "null".to_owned()
         } else {
             format!("\"{}\"", app.current_filter)
         };
-        format!(" [FILE FILTER: {}] > {}", flt, app.typed_input)
+
+        if app.switch_context == Context::Stringsearchreplace {
+            let flt_str = if app.current_str_filter.is_empty() {
+                "null".to_owned()
+            } else {
+                format!("\"{}\"", app.current_str_filter)
+            };
+            format!(
+                " [FILE FILTER: {}] [STRING FILTER: {}] > {}",
+                flt, flt_str, app.typed_input
+            )
+        } else {
+            format!(" [FILE FILTER: {}] > {}", flt, app.typed_input)
+        }
     } else {
         format!(" > {}", app.typed_input)
     };
@@ -200,7 +218,6 @@ fn build_help_text() -> Vec<String> {
         "(General Commands)".into(),
         "   <C-t> - Toggle terminal window".into(),
         "   <C-f> - Toggle string search window".into(),
-        "   <C-r> - Rescan CWD for updates".into(),
         "   <C-x> - Remove highlighted file from recent window".into(),
         "   Esc   - Exit Vuit".into(),
         "".into(),
@@ -214,7 +231,8 @@ fn build_help_text() -> Vec<String> {
         "".into(),
         "(String Search Context Commands)".into(),
         "   <C-f> - Switches focus back to the file list, but search session is preserved".into(),
-        "   Enter - Search for the string in the filtered file list or if search is already complete, enter highlighted file".into(),
+        "   Enter - Search for the string in the filtered file list, replace string search results with typed input, or if search is already complete, enter highlighted file".into(),
+        "   <C-r> - Start search and replace for all instances of string search output".into(),
     ]
 }
 
@@ -222,6 +240,7 @@ fn make_main_layout(app: &Vuit, frame: &Frame) -> (Vec<Rect>, u16) {
     let (search_lines, terminal_lines) = if app.switch_context == Context::Terminal
         || app.switch_context == Context::Help
         || app.switch_context == Context::Stringsearch
+        || app.switch_context == Context::Stringsearchreplace
     {
         (SEARCH_BAR_NUM_LINES, TERMINAL_NUM_LINES)
     } else {
@@ -271,6 +290,7 @@ fn make_search_terminal_chunks(app: &Vuit, chunks: &[Rect]) -> Vec<Rect> {
     if app.switch_context == Context::Stringsearch
         || app.switch_context == Context::Terminal
         || app.switch_context == Context::Help
+        || app.switch_context == Context::Stringsearchreplace
     {
         Layout::default()
             .direction(Direction::Vertical)
