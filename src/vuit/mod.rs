@@ -247,6 +247,10 @@ impl Vuit {
     }
 
     fn replace_string_occurences(&mut self) {
+        if self.current_str_filter.is_empty() {
+            return;
+        }
+
         let mut file_cache: HashMap<String, Vec<String>> = HashMap::new();
 
         for entry in self.file_str_list.iter() {
@@ -279,6 +283,7 @@ impl Vuit {
             let _ = write(&filename, content);
         }
         self.file_str_list.clear();
+        self.typed_input.clear();
     }
 
     fn run_preview_cmd(&mut self) -> Vec<String> {

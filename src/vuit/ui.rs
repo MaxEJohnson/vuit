@@ -53,6 +53,7 @@ pub fn dispatch_render(app: &mut Vuit, frame: &mut Frame) {
         }
         Context::Stringsearchreplace => {
             stringsearch::render(app, frame, &search_terminal_chunks);
+            render_search_progress_display(app, frame, &search_terminal_chunks);
         }
         Context::Terminal => {
             terminal::render(app, frame, &search_terminal_chunks);
@@ -181,6 +182,7 @@ fn render_file_count_display(app: &mut Vuit, f: &mut Frame, chunks: &[Rect]) {
     f.render_widget(para, right_chunks[1]);
 }
 
+//
 fn render_search_progress_display(app: &mut Vuit, f: &mut Frame, chunks: &[Rect]) {
     let status = if app.search_in_progress {
         let progress = app.search_progress.load(Ordering::Relaxed);
