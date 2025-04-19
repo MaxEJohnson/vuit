@@ -32,7 +32,7 @@ use ratatui::{widgets::ListState, DefaultTerminal};
 // External Crates
 use clap::Command as ClapCommand;
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
-use ignore::WalkBuilder;
+use ignore::{DirEntry, WalkBuilder};
 use itertools::Itertools;
 use memchr::memmem;
 use rayon::prelude::*;
@@ -168,9 +168,19 @@ impl Vuit {
         Ok(())
     }
 
+    fn skip_git(entry: &DirEntry) -> bool {
+        if let Some(file_name) = entry.file_name().to_str() {
+            file_name != ".git"
+        } else {
+            true
+        }
+    }
+
     fn run_fd_cmd(&mut self) {
         self.fd_list = WalkBuilder::new(".")
             .standard_filters(true)
+            .hidden(false)
+            .filter_entry(|entry| Vuit::skip_git(entry))
             .build()
             .filter_map(Result::ok)
             .map(|entry| entry.path().to_path_buf())
