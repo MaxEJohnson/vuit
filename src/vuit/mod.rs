@@ -303,11 +303,21 @@ impl Vuit {
             Focus::Filestrlist => &self.file_str_list,
         };
 
-        if file_list.is_empty() || self.switch_focus == Focus::Filestrlist {
+        if file_list.is_empty() {
             return vec![];
         }
 
-        let file_path = &file_list[self.hltd_file];
+        let file_path = if self.switch_context == Context::Stringsearch
+            || self.switch_context == Context::Stringsearchreplace
+        {
+            let parts: Vec<&str> = file_list[self.hltd_file].split(':').collect();
+            parts[0].to_string()
+        } else {
+            if self.hltd_file >= file_list.len() {
+                return vec![];
+            }
+            file_list[self.hltd_file].to_string()
+        };
 
         let num_lines =
             if self.switch_context == Context::Terminal || self.switch_context == Context::Help {
@@ -320,16 +330,29 @@ impl Vuit {
 
         match File::open(file_path) {
             Ok(file) => {
-                if self.switch_focus == Focus::Filestrlist {
-                    vec![]
+                let reader = BufReader::new(file);
+                if self.switch_context == Context::Stringsearch {
+                    let parts: Vec<&str> = file_list[self.hltd_file].split(':').collect();
+                    let line_number: usize = match parts[1].parse() {
+                        Ok(num) => num,
+                        Err(_) => 0,
+                    };
+                    let lines = reader
+                        .lines()
+                        .skip(line_number - 1)
+                        .take(num_lines)
+                        .filter_map(Result::ok)
+                        .map(|line| clean_utf8_content(&line))
+                        .collect::<Vec<String>>();
+                    return lines;
                 } else {
-                    let reader = BufReader::new(file);
-                    reader
+                    let lines = reader
                         .lines()
                         .take(num_lines)
                         .filter_map(Result::ok)
                         .map(|line| clean_utf8_content(&line))
-                        .collect::<Vec<String>>()
+                        .collect::<Vec<String>>();
+                    return lines;
                 }
             }
             Err(_) => vec!["No Preview Available".to_string()],
