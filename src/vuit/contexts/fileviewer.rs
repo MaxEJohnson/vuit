@@ -140,19 +140,43 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
                     if app.hltd_file >= app.recent_files.len() {
                         return;
                     }
-                    let _ = Command::new(&app.config.editor)
-                        .arg(&app.recent_files[app.hltd_file])
-                        .status()
-                        .expect("Failed to start selected editor");
+                    if std::env::var("TMUX").is_ok() {
+                        let _ = Command::new("tmux")
+                            .args([
+                                "split-window",
+                                "-h",
+                                &app.config.editor,
+                                &app.file_list[app.hltd_file],
+                            ])
+                            .status()
+                            .expect("Failed to start selected editor");
+                    } else {
+                        let _ = Command::new(&app.config.editor)
+                            .arg(&app.file_list[app.hltd_file])
+                            .status()
+                            .expect("Failed to start selected editor");
+                    }
                 }
                 Focus::Filelist => {
                     if app.hltd_file >= app.file_list.len() {
                         return;
                     }
-                    let _ = Command::new(&app.config.editor)
-                        .arg(&app.file_list[app.hltd_file])
-                        .status()
-                        .expect("Failed to start selected editor");
+                    if std::env::var("TMUX").is_ok() {
+                        let _ = Command::new("tmux")
+                            .args([
+                                "split-window",
+                                "-h",
+                                &app.config.editor,
+                                &app.file_list[app.hltd_file],
+                            ])
+                            .status()
+                            .expect("Failed to start selected editor");
+                    } else {
+                        let _ = Command::new(&app.config.editor)
+                            .arg(&app.file_list[app.hltd_file])
+                            .status()
+                            .expect("Failed to start selected editor");
+                    }
                 }
                 Focus::Filestrlist => {
                     if app.hltd_file >= app.file_str_list.len() {
@@ -162,10 +186,17 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
                         .split_once(':')
                         .map(|(before, _)| before)
                         .unwrap_or(app.file_str_list[app.hltd_file].as_str());
-                    let _ = Command::new(&app.config.editor)
-                        .arg(file_path)
-                        .status()
-                        .expect("Failed to start selected editor");
+                    if std::env::var("TMUX").is_ok() {
+                        let _ = Command::new("tmux")
+                            .args(["split-window", "-h", &app.config.editor, file_path])
+                            .status()
+                            .expect("Failed to start selected editor");
+                    } else {
+                        let _ = Command::new(&app.config.editor)
+                            .arg(file_path)
+                            .status()
+                            .expect("Failed to start selected editor");
+                    }
                 }
             }
 
@@ -193,6 +224,13 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
             app.typed_input.clear();
             app.prev_context = app.switch_context;
             app.switch_context = Context::Stringsearch;
+        }
+        KeyEvent {
+            code: KeyCode::Char('p'),
+            modifiers: KeyModifiers::CONTROL,
+            ..
+        } => {
+            app.preview_toggle = !app.preview_toggle;
         }
         KeyEvent {
             code: KeyCode::Esc, ..
@@ -382,7 +420,14 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
         } => {
             app.typed_input.clear();
             app.prev_context = app.switch_context;
-            app.switch_context = Context::Terminal;
+            if std::env::var("TMUX").is_ok() {
+                let _ = Command::new("tmux")
+                    .args(["split-window", "-h"])
+                    .status()
+                    .expect("Failed to start terminal");
+            } else {
+                app.switch_context = Context::Terminal;
+            }
         }
         KeyEvent {
             code: KeyCode::Char('x'),

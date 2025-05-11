@@ -34,6 +34,8 @@ TAB        - Switch between the "Files" window and the "Recent" window.
 
 &lt;C-h&gt;      - Toggle Help Menu.
 
+&lt;C-p&gt;      - Toggle File Preview.
+
 ESC        - Exit vuit.
 </pre>
 All other keystrokes will populate the "Search/Command Line" input window to either filter the "Files" window output or prep commands for the "Terminal" window.

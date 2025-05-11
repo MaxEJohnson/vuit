@@ -32,7 +32,7 @@ const COLORS: &[&str] = &[
 
 pub fn dispatch_render(app: &mut Vuit, frame: &mut Frame) {
     let (chunks, _content_lines) = make_main_layout(app, frame);
-    let top_chunks = make_top_chunks(&chunks);
+    let top_chunks = make_top_chunks(app, &chunks);
     let left_chunks = make_left_chunks(&top_chunks);
     let search_terminal_chunks = make_search_terminal_chunks(app, &chunks);
     let search_split_help_chunks = make_search_split_help_chunks(&search_terminal_chunks);
@@ -80,13 +80,15 @@ fn render_recent_files(app: &mut Vuit, f: &mut Frame, chunks: &[Rect]) {
 }
 
 fn render_preview_list(app: &mut Vuit, f: &mut Frame, chunks: &[Rect]) {
-    let block = Block::bordered()
-        .title(Line::from(" Preview ").centered())
-        .border_set(border::ROUNDED);
-    let list = List::new(app.preview.to_owned())
-        .block(block)
-        .style(Style::default().fg(grab_config_color(&app.config.colorscheme)));
-    f.render_widget(list, chunks[1]);
+    if app.preview_toggle {
+        let block = Block::bordered()
+            .title(Line::from(" Preview ").centered())
+            .border_set(border::ROUNDED);
+        let list = List::new(app.preview.to_owned())
+            .block(block)
+            .style(Style::default().fg(grab_config_color(&app.config.colorscheme)));
+        f.render_widget(list, chunks[1]);
+    }
 }
 
 fn render_search_input(app: &mut Vuit, f: &mut Frame, chunks: &[Rect]) {
@@ -220,7 +222,7 @@ fn build_help_text() -> Vec<String> {
         "(General Commands)".into(),
         "   <C-t> - Toggle terminal window".into(),
         "   <C-f> - Toggle string search window".into(),
-        "   <C-x> - Remove highlighted file from recent window".into(),
+        "   <C-p> - Toggle preview window".into(),
         "   Esc   - Exit Vuit".into(),
         "".into(),
         "(File/Recent Focus Commands)".into(),
@@ -265,12 +267,20 @@ fn make_main_layout(app: &Vuit, frame: &Frame) -> (Vec<Rect>, u16) {
     (chunks.to_vec(), content_lines)
 }
 
-fn make_top_chunks(chunks: &[Rect]) -> Vec<Rect> {
-    Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(chunks[0])
-        .to_vec()
+fn make_top_chunks(app: &Vuit, chunks: &[Rect]) -> Vec<Rect> {
+    if app.preview_toggle {
+        Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .split(chunks[0])
+            .to_vec()
+    } else {
+        Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(100)])
+            .split(chunks[0])
+            .to_vec()
+    }
 }
 
 fn make_left_chunks(top_chunks: &[Rect]) -> Vec<Rect> {
