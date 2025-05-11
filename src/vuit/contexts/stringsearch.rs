@@ -148,6 +148,18 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
             app.exit = true;
         }
         KeyEvent {
+            code: KeyCode::Char('t'),
+            modifiers: KeyModifiers::CONTROL,
+            ..
+        } => {
+            if std::env::var("TMUX").is_ok() {
+                let _ = Command::new("tmux")
+                    .args(["split-window", "-h"])
+                    .status()
+                    .expect("Failed to start terminal");
+            }
+        }
+        KeyEvent {
             code: KeyCode::Char('j'),
             modifiers: KeyModifiers::CONTROL,
             ..
