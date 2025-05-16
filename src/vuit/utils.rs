@@ -40,6 +40,8 @@ pub fn grab_config_color(color_str: &str) -> Color {
         "cyan" => Color::Cyan,
         "lightyellow" => Color::LightYellow,
         "yellow" => Color::Yellow,
+        "gray" => Color::Gray,
+        "white" => Color::White,
         &_ => Color::LightBlue,
     }
 }

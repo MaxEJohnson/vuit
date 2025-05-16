@@ -51,13 +51,13 @@ To add your own configurations that are static.
 
 Select from the following colors to be the base text and window color:
 
-    red, green, blue, cyan, yellow, lightred, lightgreen, lightblue, lightcyan, lightyellow.
+    red, green, blue, cyan, yellow, lightred, lightgreen, lightblue, lightcyan, lightyellow, gray, white.
 
 ### Attribute: `highlight_color`
 
 Select from the following colors to be the selector color:
 
-    red, green, blue, cyan, yellow, lightred, lightgreen, lightblue, lightcyan, lightyellow.
+    red, green, blue, cyan, yellow, lightred, lightgreen, lightblue, lightcyan, lightyellow, gray, white.
 
 ### Attribute: `editor`
 

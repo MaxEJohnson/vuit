@@ -18,11 +18,13 @@ use crate::vuit::{
 
 // Constants
 const COLORS: &[&str] = &[
+    "white",
     "lightblue",
     "cyan",
     "lightgreen",
     "yellow",
     "lightred",
+    "gray",
     "green",
     "lightcyan",
     "blue",
@@ -335,6 +337,15 @@ pub fn next_colorscheme(app: &mut Vuit, terminal: &mut DefaultTerminal) {
     app.colorscheme_index = (app.colorscheme_index + 1) % COLORS.len();
     app.config.colorscheme = COLORS[app.colorscheme_index].to_string();
     app.config.highlight_color = COLORS[(app.colorscheme_index + 1) % COLORS.len()].to_string();
+    if app.config.highlight_color == "white".to_string()
+        || app.config.highlight_color == "gray".to_string()
+        || app.config.highlight_color == "lightyellow".to_string()
+        || app.config.highlight_color == "yellow".to_string()
+        || app.config.highlight_color == "lightgreen".to_string()
+        || app.config.highlight_color == "green".to_string()
+    {
+        app.config.highlight_color = "lightblue".to_string();
+    }
 
     let _ = terminal.draw(|frame| dispatch_render(app, frame));
 }

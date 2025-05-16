@@ -77,8 +77,8 @@ pub struct VuitRC {
 impl Default for VuitRC {
     fn default() -> Self {
         Self {
-            colorscheme: "lightblue".to_string(),
-            highlight_color: "blue".to_string(),
+            colorscheme: "white".to_string(),
+            highlight_color: "lightblue".to_string(),
             editor: "vim".to_string(),
         }
     }
@@ -299,6 +299,10 @@ impl Vuit {
     }
 
     fn run_preview_cmd(&mut self) -> Vec<String> {
+        if !self.preview_toggle {
+            return vec![];
+        }
+
         let file_list = match self.switch_focus {
             Focus::Recentfiles => &self.recent_files,
             Focus::Filelist => &self.file_list,
