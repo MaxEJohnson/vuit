@@ -13,6 +13,7 @@ use std::process::Command;
 
 pub fn render(app: &mut Vuit, frame: &mut Frame, chunks: &[Rect]) {
     let area_height = chunks[1].height as usize;
+    let area_width = chunks[1].width as usize;
     let total = app.file_list.len();
     let selected = if Focus::Filelist == app.switch_focus {
         app.hltd_file.min(total.saturating_sub(1))
@@ -33,8 +34,8 @@ pub fn render(app: &mut Vuit, frame: &mut Frame, chunks: &[Rect]) {
     let truncated: Vec<String> = visible
         .iter()
         .map(|line| {
-            if line.len() > 100 {
-                format!("…{}", &line[line.len() - 99..])
+            if line.len() > (area_width - 5) {
+                format!("…{}", &line[line.len() - (area_width - 5)..])
             } else {
                 line.clone()
             }
@@ -145,6 +146,8 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
                             .args([
                                 "split-window",
                                 "-h",
+                                "-p",
+                                "80",
                                 &app.config.editor,
                                 &app.file_list[app.hltd_file],
                             ])
@@ -166,6 +169,8 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
                             .args([
                                 "split-window",
                                 "-h",
+                                "-p",
+                                "80",
                                 &app.config.editor,
                                 &app.file_list[app.hltd_file],
                             ])
@@ -177,6 +182,8 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
                             .status()
                             .expect("Failed to start selected editor");
                     }
+                    let _ = terminal.clear();
+                    let _ = terminal.draw(|frame| dispatch_render(app, frame));
                 }
                 Focus::Filestrlist => {
                     if app.hltd_file >= app.file_str_list.len() {
@@ -188,7 +195,14 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
                         .unwrap_or(app.file_str_list[app.hltd_file].as_str());
                     if std::env::var("TMUX").is_ok() {
                         let _ = Command::new("tmux")
-                            .args(["split-window", "-h", &app.config.editor, file_path])
+                            .args([
+                                "split-window",
+                                "-h",
+                                "-p",
+                                "80",
+                                &app.config.editor,
+                                file_path,
+                            ])
                             .status()
                             .expect("Failed to start selected editor");
                     } else {

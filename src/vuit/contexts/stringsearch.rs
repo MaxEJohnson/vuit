@@ -119,6 +119,8 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
                         .args([
                             "split-window",
                             "-h",
+                            "-p",
+                            "80",
                             &app.config.editor,
                             file_path,
                             &linearg,
