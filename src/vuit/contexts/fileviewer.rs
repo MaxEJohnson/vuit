@@ -142,15 +142,13 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
                         return;
                     }
                     if std::env::var("TMUX").is_ok() {
-                        let _ = Command::new("tmux")
-                            .args([
-                                "split-window",
-                                "-h",
-                                "-p",
-                                "80",
-                                &app.config.editor,
-                                &app.file_list[app.hltd_file],
-                            ])
+                        let tmux_cmd = format!(
+                            "tmux split-window -h '{}' '{}' \\; resize-pane -t ! -x $(( $(tput cols) * 20/100 ))",
+                            &app.config.editor,
+                            &app.recent_files[app.hltd_file]
+                            );
+                        let _ = Command::new("sh")
+                            .args(["-c", &tmux_cmd])
                             .status()
                             .expect("Failed to start selected editor");
                     } else {
@@ -165,15 +163,13 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
                         return;
                     }
                     if std::env::var("TMUX").is_ok() {
-                        let _ = Command::new("tmux")
-                            .args([
-                                "split-window",
-                                "-h",
-                                "-p",
-                                "80",
-                                &app.config.editor,
-                                &app.file_list[app.hltd_file],
-                            ])
+                        let tmux_cmd = format!(
+                            "tmux split-window -h '{}' '{}' \\; resize-pane -t ! -x $(( $(tput cols) * 20/100 ))",
+                            &app.config.editor,
+                            &app.file_list[app.hltd_file]
+                            );
+                        let _ = Command::new("sh")
+                            .args(["-c", &tmux_cmd])
                             .status()
                             .expect("Failed to start selected editor");
                     } else {
@@ -194,15 +190,13 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
                         .map(|(before, _)| before)
                         .unwrap_or(app.file_str_list[app.hltd_file].as_str());
                     if std::env::var("TMUX").is_ok() {
-                        let _ = Command::new("tmux")
-                            .args([
-                                "split-window",
-                                "-h",
-                                "-p",
-                                "80",
-                                &app.config.editor,
-                                file_path,
-                            ])
+                        let tmux_cmd = format!(
+                            "tmux split-window -h '{}' '{}' \\; resize-pane -t ! -x $(( $(tput cols) * 20/100 ))",
+                            &app.config.editor,
+                            file_path,
+                            );
+                        let _ = Command::new("sh")
+                            .args(["-c", &tmux_cmd])
                             .status()
                             .expect("Failed to start selected editor");
                     } else {
