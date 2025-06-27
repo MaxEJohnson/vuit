@@ -1,3 +1,4 @@
+use crate::vuit::contexts::terminal::send_cmd_to_proc_term;
 use crate::vuit::ui::{dispatch_render, next_colorscheme};
 use crate::vuit::utils::grab_config_color;
 use crate::vuit::{Context, Focus, Vuit};
@@ -9,6 +10,7 @@ use ratatui::{
     widgets::{Block, List},
     DefaultTerminal, Frame,
 };
+use std::env;
 use std::process::Command;
 
 pub fn render(app: &mut Vuit, frame: &mut Frame, chunks: &[Rect]) {
@@ -153,7 +155,7 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
                             .expect("Failed to start selected editor");
                     } else {
                         let _ = Command::new(&app.config.editor)
-                            .arg(&app.file_list[app.hltd_file])
+                            .arg(&app.recent_files[app.hltd_file])
                             .status()
                             .expect("Failed to start selected editor");
                     }
@@ -435,6 +437,7 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
                 app.typed_input.clear();
                 app.prev_context = app.switch_context;
                 app.switch_context = Context::Terminal;
+                app.term_out.clear();
             }
         }
         KeyEvent {
@@ -442,13 +445,31 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
             modifiers: KeyModifiers::CONTROL,
             ..
         } => {
-            if app.switch_focus == Focus::Recentfiles {
-                if app.recent_files.len() > 0 {
-                    app.recent_files.remove(app.hltd_file);
-                    app.hltd_file = 0;
-                    app.recent_state.select(Some(app.hltd_file));
-                }
+            let cwd = env::current_dir().expect("Failed to get current directory");
+            let abs_path = match app.switch_focus {
+                Focus::Recentfiles => cwd.join(app.recent_files[app.hltd_file].clone()),
+                Focus::Filelist => cwd.join(app.file_list[app.hltd_file].clone()),
+                Focus::Filestrlist => cwd.join(app.file_str_list[app.hltd_file].clone()),
+            };
+            let abs_path = abs_path
+                .to_str()
+                .expect("Path is not valid UTF-8")
+                .to_string();
+
+            if std::env::var("TMUX").is_ok() {
+                let _ = Command::new("tmux")
+                    .args(["split-window", "-h", "bash", "-c", &abs_path])
+                    .status()
+                    .expect("Failed to start terminal");
+            } else {
+                app.typed_input.clear();
+                app.prev_context = app.switch_context;
+                app.switch_context = Context::Terminal;
+                app.typed_input = abs_path.clone();
             }
+            send_cmd_to_proc_term(app);
+            app.typed_input.clear();
+            app.first_term_open = false;
         }
         KeyEvent {
             code: KeyCode::Char('h'),

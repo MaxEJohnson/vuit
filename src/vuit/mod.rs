@@ -126,6 +126,7 @@ pub struct Vuit {
     recent_state: ListState,
     help_menu_state: ListState,
     preview_toggle: bool,
+    first_term_open: bool,
 
     // Termination
     exit: bool,
@@ -140,6 +141,7 @@ impl Vuit {
         // Initialize Context
         self.switch_context = Context::Fileviewer;
         self.preview_toggle = false;
+        self.first_term_open = true;
 
         // Populate fd list
         self.run_fd_cmd();

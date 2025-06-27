@@ -18,7 +18,14 @@ use std::{
 };
 
 pub fn render(app: &mut Vuit, frame: &mut Frame, chunks: &[Rect]) {
-    app.term_out = render_output(app);
+    if app.first_term_open {
+        app.term_out.clear();
+        app.process_out.lock().unwrap().clear();
+    } else {
+        app.term_out.clear();
+        app.term_out = render_output(app);
+    }
+
     let para = Paragraph::new(remove_ansi_escape_codes(&app.term_out))
         .block(
             Block::bordered()
@@ -56,6 +63,7 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
             send_cmd_to_proc_term(app);
             app.typed_input.clear();
             app.process_out.lock().unwrap().clear();
+            app.first_term_open = false;
         }
         KeyEvent {
             code: KeyCode::Esc, ..
@@ -155,7 +163,7 @@ fn restart_terminal_session(app: &mut Vuit) {
     start_term(app);
 }
 
-fn send_cmd_to_proc_term(app: &mut Vuit) {
+pub fn send_cmd_to_proc_term(app: &mut Vuit) {
     // For safety, so that users do not accidentally crash vuit
     let command = app.typed_input.trim_start_matches(';').to_string();
     match command.as_str() {

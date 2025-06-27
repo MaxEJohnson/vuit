@@ -226,19 +226,17 @@ fn build_help_text() -> Vec<String> {
         "   <C-f> - Toggle string search window".into(),
         "   <C-p> - Toggle preview window".into(),
         "   Esc   - Exit Vuit".into(),
-        "".into(),
         "(File/Recent Focus Commands)".into(),
         "   Up/Down, Ctrl-j/Ctrl-k - Navigate the file list".into(),
         "   Enter - Open selected file".into(),
         "   Tab   - Switch between recent and file windows".into(),
-        "".into(),
         "(Terminal Context Commands)".into(),
         "   <C-t> - Switches focus back to the file list, but terminal session is preserved".into(),
-        "".into(),
         "(String Search Context Commands)".into(),
         "   <C-f> - Switches focus back to the file list, but search session is preserved".into(),
         "   Enter - Search for the string in the filtered file list, replace string search results with typed input, or if search is already complete, enter highlighted file".into(),
         "   <C-r> - Start search and replace for all instances of string search output".into(),
+        "   More commands can be found on the Vuit GitHub page.".into(),
     ]
 }
 

@@ -4,8 +4,8 @@
 
 GREEN='\033[0;32m'
 NC='\033[0m'
-MAC_VERSION=0.8.7
-LINUX_VERSION=0.8.7
+MAC_VERSION=0.8.8
+LINUX_VERSION=0.8.8
 
 echo -e "${NC}Installing vuit${NC}"
 if [[ $OSTYPE == linux-* ]]; then
