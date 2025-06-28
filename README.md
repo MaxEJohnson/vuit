@@ -20,7 +20,7 @@ ENTER      - On highlighted file, open Vim.
 
 TAB        - Switch between the "Files" window and the "Recent" window.
 
-&lt;C-x&gt;      - Remove highlighted file from "Recent".
+&lt;C-x&gt;      - Execute script rather than open editor.
 
 &lt;C-r&gt;      - Refresh CWD file scan.
 
