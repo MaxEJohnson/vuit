@@ -16,6 +16,7 @@ use crate::vuit::events::dispatch_event;
 use crate::vuit::ui::dispatch_render;
 use crate::vuit::utils::{clean_utf8_content, expand_tilde};
 use std::error::Error;
+use std::time::Duration;
 
 // Std Lib
 use std::{
@@ -264,6 +265,7 @@ impl Vuit {
     fn set_clipboard(text: &str) -> Result<(), Box<dyn Error>> {
         let mut clipboard = arboard::Clipboard::new()?;
         clipboard.set_text(text.to_owned())?;
+        thread::sleep(Duration::from_millis(200));
         Ok(())
     }
 
