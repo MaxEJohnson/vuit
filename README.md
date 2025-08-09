@@ -18,13 +18,13 @@ ENTER      - On highlighted file, open Vim.
 
 &lt;C-k&gt;      - Move up in "Files" window.
 
+&lt;C-y&gt;      - Copy highlighted file path to clipboard.
+
 TAB        - Switch between the "Files" window and the "Recent" window.
 
 &lt;C-x&gt;      - Execute script rather than open editor.
 
 &lt;C-r&gt;      - Refresh CWD file scan.
-
-&lt;C-y&gt;      - Copy highlighted file path to clipboard.
 
 &lt;C-n&gt;      - Cycle through colorschemes.
 
