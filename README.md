@@ -24,6 +24,8 @@ TAB        - Switch between the "Files" window and the "Recent" window.
 
 &lt;C-r&gt;      - Refresh CWD file scan.
 
+&lt;C-y&gt;      - Copy highlighted file path to clipboard.
+
 &lt;C-n&gt;      - Cycle through colorschemes.
 
 &lt;C-t&gt;      - Toggle Terminal.

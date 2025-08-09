@@ -226,6 +226,36 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
             let _ = terminal.draw(|frame| dispatch_render(app, frame));
         }
         KeyEvent {
+            code: KeyCode::Char('y'),
+            modifiers: KeyModifiers::CONTROL,
+            ..
+        } => match app.switch_focus {
+            Focus::Recentfiles => {
+                if app.hltd_file >= app.recent_files.len() {
+                    return;
+                }
+                let _ = Vuit::set_clipboard(&app.recent_files[app.hltd_file]);
+                return;
+            }
+            Focus::Filelist => {
+                if app.hltd_file >= app.file_list.len() {
+                    return;
+                }
+                let _ = Vuit::set_clipboard(&app.file_list[app.hltd_file]);
+                return;
+            }
+            Focus::Filestrlist => {
+                if app.hltd_file >= app.file_str_list.len() {
+                    return;
+                }
+                let file_path = &app.file_str_list[app.hltd_file]
+                    .split_once(':')
+                    .map(|(before, _)| before)
+                    .unwrap_or(app.file_str_list[app.hltd_file].as_str());
+                let _ = Vuit::set_clipboard(file_path);
+            }
+        },
+        KeyEvent {
             code: KeyCode::Char('f'),
             modifiers: KeyModifiers::CONTROL,
             ..
