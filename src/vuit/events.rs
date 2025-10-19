@@ -4,6 +4,7 @@ use ratatui::DefaultTerminal;
 use std::sync::atomic::Ordering;
 
 use crate::vuit::contexts::{fileviewer, stringsearch, stringsearchreplace, terminal};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 pub fn dispatch_event(app: &mut Vuit, terminal: &mut DefaultTerminal) -> std::io::Result<()> {
     if !event::poll(std::time::Duration::from_millis(100))? {
@@ -41,6 +42,9 @@ pub fn dispatch_event(app: &mut Vuit, terminal: &mut DefaultTerminal) -> std::io
             Context::Help => {
                 fileviewer::handler(app, key_event, terminal);
             }
+        }
+        if app.oneshot_mode && key_event.code == KeyCode::Enter {
+            app.exit = true;
         }
     }
 

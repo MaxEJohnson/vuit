@@ -15,6 +15,7 @@ use crate::vuit::contexts::terminal::start_term;
 use crate::vuit::events::dispatch_event;
 use crate::vuit::ui::dispatch_render;
 use crate::vuit::utils::{clean_utf8_content, expand_tilde};
+use clap::Arg;
 use std::error::Error;
 use std::time::Duration;
 
@@ -74,6 +75,7 @@ pub struct VuitRC {
     colorscheme: String,
     highlight_color: String,
     editor: String,
+    oneshot_mode: bool,
 }
 
 impl Default for VuitRC {
@@ -82,6 +84,7 @@ impl Default for VuitRC {
             colorscheme: "white".to_string(),
             highlight_color: "lightblue".to_string(),
             editor: "vim".to_string(),
+            oneshot_mode: false,
         }
     }
 }
@@ -92,6 +95,7 @@ pub struct Vuit {
     // Config
     config: VuitRC,
     colorscheme_index: usize,
+    oneshot_mode: bool,
 
     // Input
     typed_input: String,
@@ -382,6 +386,12 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     let matches = ClapCommand::new("vuit")
         .version(env!("CARGO_PKG_VERSION")) // Uses the version from Cargo.toml
         .about("Vim User Interface Terminal - A Buffer Manager for Vim")
+        .arg(
+            Arg::new("oneshot")
+                .long("oneshot")
+                .help("Run once and exit after selection")
+                .action(clap::ArgAction::SetTrue),
+        )
         .get_matches();
 
     if matches.contains_id("version") {
@@ -413,6 +423,10 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
         config,
         ..Default::default()
     };
+
+    if matches.get_flag("oneshot") {
+        vuit_app.oneshot_mode = true;
+    }
 
     let vuit_result = vuit_app.run(&mut terminal);
     ratatui::restore();
