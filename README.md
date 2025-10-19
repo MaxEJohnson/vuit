@@ -79,3 +79,11 @@ Boolean value (true/false). If true, vuit will close after closing current file 
     "oneshot": false
 }
 ```
+### Sample `.vimrc` injection
+
+Some users may wish to use Vuit as a plugin rather encompassing VIM, here is how it could be added:
+
+```vim
+command! VuitVSplit vert split | call term_start(['vuit'], {'curwin': 1, 'term_finish': 'close'})
+nnoremap <Leader>vf :VuitVSplit<CR>
+```
