@@ -65,6 +65,10 @@ Select from the following colors to be the selector color:
 
 Selection is up to the user. Examples: vim, nvim, ... nano 
 
+### Attribute: `oneshot`
+
+Boolean value (true/false). If true, vuit will close after closing current file in the selected editor. If false, vuit will remain open after closing files.
+
 ### Example `.vuitrc`
 
 ```json
@@ -72,5 +76,6 @@ Selection is up to the user. Examples: vim, nvim, ... nano
     "colorscheme": "Cyan",
     "highlight_color": "Blue",
     "editor": "vim"
+    "oneshot": false
 }
 ```
