@@ -66,11 +66,9 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
 
                 if std::env::var("TMUX").is_ok() {
                     let tmux_cmd = format!(
-                            "tmux split-window -h '{}' '{}' '{}' \\; resize-pane -t ! -x $(( $(tput cols) * 20/100 ))",
-                            &app.config.editor,
-                            file_path,
-                            &linearg,
-                            );
+                        "tmux split-window -h '{}' '{}' '{}' \\; resize-pane -t ! -x $(( $(tput cols) * 20/100 ))",
+                        &app.config.editor, file_path, &linearg,
+                    );
                     let _ = Command::new("sh")
                         .args(["-c", &tmux_cmd])
                         .status()
@@ -304,6 +302,7 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
             app.prev_context = app.switch_context;
             app.switch_context = Context::Fileviewer;
             app.file_list = app.run_search_cmd();
+            app.hltd_file = 0;
         }
         KeyEvent {
             code: KeyCode::Char('x'),
