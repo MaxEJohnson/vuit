@@ -43,7 +43,7 @@ pub fn dispatch_event(app: &mut Vuit, terminal: &mut DefaultTerminal) -> std::io
                 fileviewer::handler(app, key_event, terminal);
             }
         }
-        if app.oneshot_mode && key_event.code == KeyCode::Enter {
+        if app.oneshot && key_event.code == KeyCode::Enter {
             app.exit = true;
         }
     }

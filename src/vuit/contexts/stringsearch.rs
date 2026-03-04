@@ -5,10 +5,10 @@ use crate::vuit::{Context, Focus, Vuit};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::prelude::*;
 use ratatui::{
+    DefaultTerminal, Frame,
     symbols::border,
     text::Line,
     widgets::{Block, List},
-    DefaultTerminal, Frame,
 };
 use std::env;
 use std::process::Command;
@@ -101,7 +101,7 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
                     .map(|(before, _)| before)
                     .unwrap_or(app.file_str_list[app.hltd_file].as_str());
 
-                let linearg = if app.config.editor == "vim" {
+                let linearg = if app.config.editor == "vim" || app.config.editor == "nvim" {
                     let linenumnstr = app.file_str_list[app.hltd_file]
                         .split_once(':')
                         .map(|(_, after)| after)
@@ -118,11 +118,9 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
 
                 if std::env::var("TMUX").is_ok() {
                     let tmux_cmd = format!(
-                            "tmux split-window -h '{}' '{}' '{}' \\; resize-pane -t ! -x $(( $(tput cols) * 20/100 ))",
-                            &app.config.editor,
-                            file_path,
-                            &linearg,
-                            );
+                        "tmux split-window -h '{}' '{}' '{}' \\; resize-pane -t ! -x $(( $(tput cols) * 20/100 ))",
+                        &app.config.editor, file_path, &linearg,
+                    );
                     let _ = Command::new("sh")
                         .args(["-c", &tmux_cmd])
                         .status()
@@ -386,6 +384,7 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
             app.prev_context = app.switch_context;
             app.switch_context = Context::Fileviewer;
             app.file_list = app.run_search_cmd();
+            app.hltd_file = 0;
         }
         KeyEvent {
             code: KeyCode::Char('x'),

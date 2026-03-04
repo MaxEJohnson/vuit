@@ -73,9 +73,9 @@ Boolean value (true/false). If true, vuit will close after closing current file 
 
 ```json
 {
-    "colorscheme": "Cyan",
+    "colorscheme": "White",
     "highlight_color": "Blue",
-    "editor": "vim"
+    "editor": "vim",
     "oneshot": false
 }
 ```

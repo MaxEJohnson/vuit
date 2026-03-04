@@ -22,7 +22,7 @@ use std::time::Duration;
 // Std Lib
 use std::{
     collections::HashMap,
-    fs::{self, read_to_string, write, File},
+    fs::{self, File, read_to_string, write},
     io::{self, BufRead, BufReader, Write},
     path::Path,
     sync::{Arc, Mutex},
@@ -30,11 +30,11 @@ use std::{
 };
 
 // Ratatui
-use ratatui::{widgets::ListState, DefaultTerminal};
+use ratatui::{DefaultTerminal, widgets::ListState};
 
 // External Crates
 use clap::Command as ClapCommand;
-use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
+use fuzzy_matcher::{FuzzyMatcher, skim::SkimMatcherV2};
 use ignore::{DirEntry, WalkBuilder};
 use itertools::Itertools;
 use memchr::memmem;
@@ -75,7 +75,7 @@ pub struct VuitRC {
     colorscheme: String,
     highlight_color: String,
     editor: String,
-    oneshot_mode: bool,
+    oneshot: bool,
 }
 
 impl Default for VuitRC {
@@ -84,7 +84,7 @@ impl Default for VuitRC {
             colorscheme: "white".to_string(),
             highlight_color: "lightblue".to_string(),
             editor: "vim".to_string(),
-            oneshot_mode: false,
+            oneshot: false,
         }
     }
 }
@@ -95,7 +95,7 @@ pub struct Vuit {
     // Config
     config: VuitRC,
     colorscheme_index: usize,
-    oneshot_mode: bool,
+    oneshot: bool,
 
     // Input
     typed_input: String,
@@ -425,7 +425,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     if matches.get_flag("oneshot") {
-        vuit_app.oneshot_mode = true;
+        vuit_app.oneshot = true;
     }
 
     let vuit_result = vuit_app.run(&mut terminal);
