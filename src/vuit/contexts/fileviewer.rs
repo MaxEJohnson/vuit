@@ -5,10 +5,10 @@ use crate::vuit::{Context, Focus, Vuit};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::prelude::*;
 use ratatui::{
+    DefaultTerminal, Frame,
     symbols::border,
     text::Line,
     widgets::{Block, List},
-    DefaultTerminal, Frame,
 };
 use std::env;
 use std::process::Command;
@@ -146,9 +146,8 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
                     if std::env::var("TMUX").is_ok() {
                         let tmux_cmd = format!(
                             "tmux split-window -h '{}' '{}' \\; resize-pane -t ! -x $(( $(tput cols) * 20/100 ))",
-                            &app.config.editor,
-                            &app.recent_files[app.hltd_file]
-                            );
+                            &app.config.editor, &app.recent_files[app.hltd_file]
+                        );
                         let _ = Command::new("sh")
                             .args(["-c", &tmux_cmd])
                             .status()
@@ -167,9 +166,8 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
                     if std::env::var("TMUX").is_ok() {
                         let tmux_cmd = format!(
                             "tmux split-window -h '{}' '{}' \\; resize-pane -t ! -x $(( $(tput cols) * 20/100 ))",
-                            &app.config.editor,
-                            &app.file_list[app.hltd_file]
-                            );
+                            &app.config.editor, &app.file_list[app.hltd_file]
+                        );
                         let _ = Command::new("sh")
                             .args(["-c", &tmux_cmd])
                             .status()
@@ -194,9 +192,8 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
                     if std::env::var("TMUX").is_ok() {
                         let tmux_cmd = format!(
                             "tmux split-window -h '{}' '{}' \\; resize-pane -t ! -x $(( $(tput cols) * 20/100 ))",
-                            &app.config.editor,
-                            file_path,
-                            );
+                            &app.config.editor, file_path,
+                        );
                         let _ = Command::new("sh")
                             .args(["-c", &tmux_cmd])
                             .status()
@@ -234,15 +231,15 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
                 if app.hltd_file >= app.recent_files.len() {
                     return;
                 }
-                let _ = Vuit::set_clipboard(&app.recent_files[app.hltd_file]);
-                return;
+                let file_path = &app.recent_files[app.hltd_file];
+                let _ = Vuit::set_clipboard(file_path.strip_prefix("./").unwrap_or(file_path));
             }
             Focus::Filelist => {
                 if app.hltd_file >= app.file_list.len() {
                     return;
                 }
-                let _ = Vuit::set_clipboard(&app.file_list[app.hltd_file]);
-                return;
+                let file_path = &app.file_list[app.hltd_file];
+                let _ = Vuit::set_clipboard(file_path.strip_prefix("./").unwrap_or(file_path));
             }
             Focus::Filestrlist => {
                 if app.hltd_file >= app.file_str_list.len() {
@@ -252,7 +249,7 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
                     .split_once(':')
                     .map(|(before, _)| before)
                     .unwrap_or(app.file_str_list[app.hltd_file].as_str());
-                let _ = Vuit::set_clipboard(file_path);
+                let _ = Vuit::set_clipboard(file_path.strip_prefix("./").unwrap_or(file_path));
             }
         },
         KeyEvent {

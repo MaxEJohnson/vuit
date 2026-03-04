@@ -4,7 +4,7 @@ use ratatui::DefaultTerminal;
 use std::sync::atomic::Ordering;
 
 use crate::vuit::contexts::{fileviewer, stringsearch, stringsearchreplace, terminal};
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::KeyCode;
 
 pub fn dispatch_event(app: &mut Vuit, terminal: &mut DefaultTerminal) -> std::io::Result<()> {
     if !event::poll(std::time::Duration::from_millis(100))? {

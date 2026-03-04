@@ -150,15 +150,15 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
                 if app.hltd_file >= app.recent_files.len() {
                     return;
                 }
-                let _ = Vuit::set_clipboard(&app.recent_files[app.hltd_file]);
-                return;
+                let file_path = &app.recent_files[app.hltd_file];
+                let _ = Vuit::set_clipboard(file_path.strip_prefix("./").unwrap_or(file_path));
             }
             Focus::Filelist => {
                 if app.hltd_file >= app.file_list.len() {
                     return;
                 }
-                let _ = Vuit::set_clipboard(&app.file_list[app.hltd_file]);
-                return;
+                let file_path = &app.file_list[app.hltd_file];
+                let _ = Vuit::set_clipboard(file_path.strip_prefix("./").unwrap_or(file_path));
             }
             Focus::Filestrlist => {
                 if app.hltd_file >= app.file_str_list.len() {
@@ -168,7 +168,7 @@ pub fn handler(app: &mut Vuit, key: KeyEvent, terminal: &mut DefaultTerminal) {
                     .split_once(':')
                     .map(|(before, _)| before)
                     .unwrap_or(app.file_str_list[app.hltd_file].as_str());
-                let _ = Vuit::set_clipboard(file_path);
+                let _ = Vuit::set_clipboard(file_path.strip_prefix("./").unwrap_or(file_path));
             }
         },
         KeyEvent {
